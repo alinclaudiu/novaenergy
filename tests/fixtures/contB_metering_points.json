@@ -1,0 +1,51 @@
+{
+  "docs": [
+    {
+      "address": "Bd. Independenței 42",
+      "contractId": "ctr-b1",
+      "contractType": "individual",
+      "meteringPointId": "mp-b1",
+      "meters": [
+        {
+          "consumption": 60,
+          "lastIndex": 1200,
+          "lastReadingDate": "02.03.2026",
+          "meterId": "mt-b1",
+          "series": "GS7654321",
+          "unit": "m³"
+        }
+      ],
+      "number": "POD0002",
+      "specificIdForUtilityType": "CLC222",
+      "utilityType": "gas"
+    },
+    {
+      "address": "Bd. Independenței 42",
+      "contractId": "ctr-b2",
+      "contractType": "individual",
+      "meteringPointId": "mp-b2",
+      "meters": [
+        {
+          "consumption": 310,
+          "lastIndex": 45210,
+          "lastReadingDate": "02.03.2026",
+          "meterId": "mt-b2",
+          "series": "EL9999999",
+          "unit": "kWh"
+        }
+      ],
+      "number": "POD0003",
+      "specificIdForUtilityType": "POD333",
+      "utilityType": "electricity"
+    }
+  ],
+  "hasNextPage": false,
+  "hasPrevPage": false,
+  "limit": 10,
+  "nextPage": null,
+  "page": 1,
+  "pagingCounter": 1,
+  "prevPage": null,
+  "totalDocs": 0,
+  "totalPages": 1
+}

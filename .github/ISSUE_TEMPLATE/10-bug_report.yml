@@ -1,0 +1,80 @@
+name: Raportare problemă
+description: Ceva nu funcționează cum ar trebui
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Mulțumesc că raportezi problema. Cu cât detaliile sunt mai precise, cu atât se rezolvă mai repede.
+
+        Înainte de a trimite, verifică [FAQ.md](https://github.com/alinclaudiu/novaenergy/blob/main/FAQ.md) —
+        multe comportamente care par erori sunt normale și explicate acolo.
+
+  - type: textarea
+    id: descriere
+    attributes:
+      label: Ce se întâmplă
+      description: Descrie problema și ce te așteptai să se întâmple în schimb.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducere
+    attributes:
+      label: Cum se reproduce
+      description: Pașii care duc la problemă.
+      placeholder: |
+        1. Am adăugat integrarea cu…
+        2. Am selectat contul…
+        3. Senzorul X arată…
+    validations:
+      required: true
+
+  - type: input
+    id: versiune_integrare
+    attributes:
+      label: Versiunea integrării
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: versiune_ha
+    attributes:
+      label: Versiunea Home Assistant
+      placeholder: "2025.11.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: utilitati
+    attributes:
+      label: Ce utilități ai pe cont
+      options:
+        - Doar gaz
+        - Doar energie electrică
+        - Ambele
+    validations:
+      required: true
+
+  - type: textarea
+    id: loguri
+    attributes:
+      label: Loguri
+      description: >
+        Cu jurnalizarea de depanare activată (vezi DEBUG.md). Verifică-le înainte
+        de a le trimite și înlocuiește orice dată personală pe care nu vrei să o faci publică.
+      render: text
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmari
+    attributes:
+      label: Confirmări
+      options:
+        - label: Am citit FAQ.md și problema nu e descrisă acolo
+          required: true
+        - label: Logurile atașate nu conțin parola mea
+          required: true

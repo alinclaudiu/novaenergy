@@ -1,0 +1,24 @@
+name: Validare HACS
+
+# Notă: cât timp repository-ul e privat, două verificări (`hacsjson` și
+# `integration_manifest`) pică inevitabil. HACS citește conținutul fișierelor
+# prin raw.githubusercontent.com, fără autentificare, iar acolo un repo privat
+# răspunde 404 — deci validatorul primește `None` în loc de fișier. Restul de
+# șapte verificări trec. Se rezolvă singur când repo-ul devine public.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
+
+jobs:
+  validare:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration

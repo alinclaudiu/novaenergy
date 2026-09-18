@@ -1,0 +1,13 @@
+{
+  "domain": "novaenergy",
+  "name": "Nova Energy România",
+  "codeowners": ["@alinclaudiu"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/alinclaudiu/novaenergy",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/alinclaudiu/novaenergy/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

@@ -1,0 +1,8 @@
+{
+  "data": {
+    "announcements": [],
+    "name": "Nova",
+    "selfReadingIntervalMessage": "Trimite indexul între 1 și 10",
+    "selfReadingsEnabled": true
+  }
+}

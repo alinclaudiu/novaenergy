@@ -1,0 +1,26 @@
+{
+  "docs": [
+    {
+      "contractId": "ctr-a1",
+      "inForceAt": "01.02.2024",
+      "invoiceDeliveryType": "Doar electronic",
+      "number": "NV-12345",
+      "prosumerCertificate": "",
+      "prosumerContract": "",
+      "signedAt": "15.01.2024",
+      "status": "Activ",
+      "tipAct": 1,
+      "type": "Casnic",
+      "utilityType": "gas"
+    }
+  ],
+  "hasNextPage": false,
+  "hasPrevPage": false,
+  "limit": 10,
+  "nextPage": null,
+  "page": 1,
+  "pagingCounter": 1,
+  "prevPage": null,
+  "totalDocs": 0,
+  "totalPages": 1
+}

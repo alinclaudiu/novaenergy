@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Nova Energy România",
+        "description": "Introdu datele contului tău Nova Power & Gas.",
+        "data": {
+          "username": "Email",
+          "password": "Parolă",
+          "update_interval": "Interval de actualizare (secunde)"
+        }
+      },
+      "accounts": {
+        "title": "Selectează conturile",
+        "description": "Au fost descoperite {numar} cont(uri). Alege-le pe cele pe care vrei să le monitorizezi.",
+        "data": {
+          "selected_accounts": "Conturi",
+          "select_all": "Selectează toate conturile"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reautentificare Nova Energy",
+        "description": "Parola contului {email} nu mai este acceptată. Introdu parola nouă.",
+        "data": {
+          "password": "Parolă"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Email sau parolă greșită.",
+      "cannot_connect": "Serverele Nova nu răspund. Încearcă din nou mai târziu.",
+      "no_accounts": "Acest cont nu are contracte de monitorizat.",
+      "no_selection": "Selectează cel puțin un cont.",
+      "unknown": "Eroare neașteptată. Verifică jurnalul Home Assistant."
+    },
+    "abort": {
+      "already_configured": "Acest cont Nova este deja configurat.",
+      "reauth_successful": "Reautentificare reușită."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Setări Nova Energy România",
+        "description": "Modifică intervalul de actualizare sau conturile monitorizate.",
+        "data": {
+          "selected_accounts": "Conturi",
+          "select_all": "Selectează toate conturile",
+          "update_interval": "Interval de actualizare (secunde)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Email sau parolă greșită.",
+      "cannot_connect": "Serverele Nova nu răspund. Încearcă din nou mai târziu.",
+      "no_selection": "Selectează cel puțin un cont."
+    }
+  }
+}

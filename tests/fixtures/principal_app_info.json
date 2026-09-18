@@ -1,0 +1,22 @@
+{
+  "data": {
+    "announcements": [
+      {
+        "createdAt": "2026-04-30T05:55:23.750Z",
+        "id": "id-0001",
+        "message": "Mesaj informativ.",
+        "rules": [
+          {
+            "id": "id-0001",
+            "option": "interval",
+            "value": "valoare"
+          }
+        ],
+        "updatedAt": "2026-04-30T05:55:23.750Z"
+      }
+    ],
+    "name": "Nova",
+    "selfReadingIntervalMessage": "Puteți trimite consumul doar în intervalul calendaristic 19-26.",
+    "selfReadingsEnabled": false
+  }
+}

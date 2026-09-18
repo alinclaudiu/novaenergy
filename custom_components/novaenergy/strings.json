@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Nova Energy România",
+        "description": "Enter the credentials for your Nova Power & Gas account.",
+        "data": {
+          "username": "Email",
+          "password": "Password",
+          "update_interval": "Update interval (seconds)"
+        }
+      },
+      "accounts": {
+        "title": "Select accounts",
+        "description": "{numar} account(s) were discovered. Choose the ones you want to monitor.",
+        "data": {
+          "selected_accounts": "Accounts",
+          "select_all": "Select all accounts"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Nova Energy re-authentication",
+        "description": "The password for {email} is no longer accepted. Enter the new password.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password.",
+      "cannot_connect": "Could not reach the Nova servers. Try again later.",
+      "no_accounts": "This account has no contracts to monitor.",
+      "no_selection": "Select at least one account.",
+      "unknown": "Unexpected error. Check the Home Assistant log."
+    },
+    "abort": {
+      "already_configured": "This Nova account is already configured.",
+      "reauth_successful": "Re-authentication successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Nova Energy România settings",
+        "description": "Change the update interval or the monitored accounts.",
+        "data": {
+          "selected_accounts": "Accounts",
+          "select_all": "Select all accounts",
+          "update_interval": "Update interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password.",
+      "cannot_connect": "Could not reach the Nova servers. Try again later.",
+      "no_selection": "Select at least one account."
+    }
+  }
+}

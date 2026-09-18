@@ -1,0 +1,43 @@
+{
+  "docs": [
+    {
+      "amount": 125.5,
+      "dueDate": "15.04.2026",
+      "invoiceId": "inv-1",
+      "issueDate": "04.03.2026",
+      "number": "NV-0001",
+      "paid": false,
+      "remainingAmount": 125.5,
+      "utilityType": "gas"
+    },
+    {
+      "amount": 98.2,
+      "dueDate": "15.03.2026",
+      "invoiceId": "inv-2",
+      "issueDate": "15.02.2026",
+      "number": "NV-0002",
+      "paid": false,
+      "remainingAmount": 98.2,
+      "utilityType": "gas"
+    },
+    {
+      "amount": 310.0,
+      "dueDate": "10.01.2026",
+      "invoiceId": "inv-3",
+      "issueDate": "10.12.2025",
+      "number": "NV-0003",
+      "paid": true,
+      "remainingAmount": 0,
+      "utilityType": "gas"
+    }
+  ],
+  "hasNextPage": false,
+  "hasPrevPage": false,
+  "limit": 10,
+  "nextPage": null,
+  "page": 1,
+  "pagingCounter": 1,
+  "prevPage": null,
+  "totalDocs": 0,
+  "totalPages": 1
+}

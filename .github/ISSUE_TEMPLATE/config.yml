@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Întrebări frecvente
+    url: https://github.com/alinclaudiu/novaenergy/blob/main/FAQ.md
+    about: Răspunsuri la cele mai comune întrebări despre instalare, entități și comportamentul senzorilor.
+  - name: Ghid de instalare și carduri Lovelace
+    url: https://github.com/alinclaudiu/novaenergy/blob/main/SETUP.md
+    about: Instalare pas cu pas, referință de entity ID-uri și exemple de carduri pentru dashboard.
+  - name: Ghid de depanare
+    url: https://github.com/alinclaudiu/novaenergy/blob/main/DEBUG.md
+    about: Cum activezi logurile, ce înseamnă mesajele și ce e normal să vezi.

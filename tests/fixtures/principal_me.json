@@ -1,0 +1,28 @@
+{
+  "collection": "accounts",
+  "exp": 1800000000,
+  "message": "Mesaj informativ.",
+  "strategy": "local-jwt",
+  "token": "REDACTAT",
+  "user": {
+    "_strategy": "local-jwt",
+    "collection": "accounts",
+    "createdAt": "2026-09-18T07:08:06.653Z",
+    "crmAccountType": "parent",
+    "crmLoggedAccountId": "crm-loggedaccountid",
+    "crmLoggedAccountNumber": "crm-loggedaccountnumber",
+    "crmLoggedContactId": "crm-loggedcontactid",
+    "crmLoggedPrimaryContactId": "crm-loggedprimarycontactid",
+    "crmViewedAccountId": "crm-viewedaccountid",
+    "crmViewedAccountNumber": "crm-viewedaccountnumber",
+    "crmViewedContactId": "crm-viewedcontactid",
+    "crmViewedPrimaryContactId": "crm-viewedprimarycontactid",
+    "email": "utilizator@exemplu.test",
+    "id": "id-0001",
+    "isNGO": false,
+    "legalEntityType": "individual",
+    "loginAttempts": 0,
+    "role": "client",
+    "updatedAt": "2026-09-18T07:32:04.866Z"
+  }
+}

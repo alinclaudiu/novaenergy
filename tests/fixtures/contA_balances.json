@@ -1,0 +1,17 @@
+{
+  "docs": [
+    {
+      "balance": 223.7,
+      "prosumerBalance": 0
+    }
+  ],
+  "hasNextPage": false,
+  "hasPrevPage": false,
+  "limit": 10,
+  "nextPage": null,
+  "page": 1,
+  "pagingCounter": 1,
+  "prevPage": null,
+  "totalDocs": 0,
+  "totalPages": 1
+}

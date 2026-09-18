@@ -1,0 +1,39 @@
+{
+  "docs": [
+    {
+      "contractId": "ctr-b1",
+      "inForceAt": "01.07.2023",
+      "invoiceDeliveryType": "Doar electronic",
+      "number": "NV-22222",
+      "prosumerCertificate": "",
+      "prosumerContract": "",
+      "signedAt": "01.06.2023",
+      "status": "Activ",
+      "tipAct": 1,
+      "type": "Casnic",
+      "utilityType": "gas"
+    },
+    {
+      "contractId": "ctr-b2",
+      "inForceAt": "01.07.2023",
+      "invoiceDeliveryType": "Doar electronic",
+      "number": "NV-33333",
+      "prosumerCertificate": "CERT-999",
+      "prosumerContract": "PROS-999",
+      "signedAt": "01.06.2023",
+      "status": "Activ",
+      "tipAct": 1,
+      "type": "Casnic",
+      "utilityType": "electricity"
+    }
+  ],
+  "hasNextPage": false,
+  "hasPrevPage": false,
+  "limit": 10,
+  "nextPage": null,
+  "page": 1,
+  "pagingCounter": 1,
+  "prevPage": null,
+  "totalDocs": 0,
+  "totalPages": 1
+}

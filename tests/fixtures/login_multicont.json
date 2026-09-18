@@ -1,0 +1,46 @@
+{
+  "data": {
+    "loggedInAccount": {
+      "accountId": "id-cont-a",
+      "accountName": "POPESCU ION",
+      "accountNumber": "3047398",
+      "associatedAccounts": [
+        {
+          "accountId": "id-cont-a",
+          "accountName": "POPESCU ION",
+          "accountNumber": "3047398",
+          "address": "Strada Florilor 15, Iași",
+          "email": "ion@exemplu.ro",
+          "phone": "0700000000",
+          "role": "client"
+        },
+        {
+          "accountId": "id-cont-b",
+          "accountName": "POPESCU MARIA",
+          "accountNumber": "3008726",
+          "address": "Bulevardul Independenței 42, Iași",
+          "email": "maria@exemplu.ro",
+          "phone": "0700000001",
+          "role": "client"
+        }
+      ]
+    },
+    "session": {
+      "expireAt": 1792307286,
+      "role": "client",
+      "token": "token-secret",
+      "username": "ion@exemplu.ro"
+    },
+    "viewedAccount": {
+      "accountId": "id-cont-a",
+      "accountName": "POPESCU ION",
+      "accountNumber": "3047398",
+      "address": "Strada Florilor 15, Iași",
+      "email": "ion@exemplu.ro",
+      "phone": "0700000000",
+      "role": "client"
+    }
+  },
+  "status": 200,
+  "success": true
+}
