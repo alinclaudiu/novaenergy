@@ -58,13 +58,16 @@ Pentru că Nova nu raportează contul ca fiind de prosumator. Senzorul se creeaz
 
 ## Am schimbat contorul. Ce se întâmplă?
 
-Senzorii de index sunt identificați prin seria contorului, deci apare o entitate nouă pentru contorul nou, de la prima citire a lui. Cea veche rămâne, cu istoricul ei, și păstrează ultimul index cunoscut cât timp citirea ei mai apare în istoricul Nova. O poți șterge din interfață când nu-ți mai trebuie.
+Senzorii de index sunt identificați prin seria contorului, deci contorul nou primește entități noi, iar cele vechi rămân, cu istoricul lor, până le ștergi din interfață:
+
+- **Index contor** apare pentru contorul nou de la prima lui citire; cel vechi păstrează ultimul index cunoscut cât timp citirea lui mai apare în istoricul Nova.
+- **Index facturat** apare pentru contorul nou imediat ce acesta e în lista de contoare a locului de consum, cu un index facturat; cel vechi devine `unavailable` de îndată ce contorul dispare din listă.
 
 ---
 
 ## De unde vine indexul contorului?
 
-Din istoricul de citiri pe care îl arată și aplicația Nova, la autocitiri. Senzorul arată indexul din cea mai recentă perioadă. Un contor fără nicio citire în istoric nu primește senzor până la prima citire.
+Sunt doi senzori, din două surse ale aplicației Nova. **Index contor** vine din istoricul de citiri (la autocitiri) și arată indexul din cea mai recentă perioadă. **Index facturat** vine din lista de contoare a locului de consum și arată ultimul index facturat; e disponibil oricând, chiar și pentru un contor fără nicio citire în istoric. Primul urmează citirile, al doilea facturile, deci de obicei rămâne puțin în urmă. Pentru tabloul Energie folosește unul singur dintre ei.
 
 ---
 
@@ -112,7 +115,7 @@ Nu. Actualizezi prin HACS, repornești Home Assistant, iar entitățile și isto
 
 ## Pot trimite raportul de diagnostic într-un issue public?
 
-Da, cu o mică pregătire. Raportul maschează adresa de email și nu conține parola, tokenul sau valorile din răspunsurile API: doar starea conturilor, câte facturi, plăți, contracte și citiri există și lista de senzori — exact ce trebuie pentru diagnosticare. Conține însă numărul contului (codul CRM), iar numele senzorilor de index conțin seria contorului; înlocuiește-le înainte de a-l publica, dacă nu vrei să fie vizibile.
+Da, cu o mică pregătire. Raportul maschează adresa de email și nu conține parola, tokenul sau valorile din răspunsurile API: doar starea conturilor, câte facturi, plăți, contracte, puncte de consum, contoare și citiri există și lista de senzori — exact ce trebuie pentru diagnosticare. Conține însă numărul contului (codul CRM), iar numele senzorilor de index conțin seria contorului; înlocuiește-le înainte de a-l publica, dacă nu vrei să fie vizibile.
 
 ---
 

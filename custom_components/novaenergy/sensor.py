@@ -60,6 +60,7 @@ CHEI_ENTITATI: tuple[str, ...] = (
     "arhiva_plati",
     "date_contract",
     "index_contor",
+    "index_facturat",
 )
 
 UNITATE_IMPLICITA = {UTILITY_GAS: "m³"}
@@ -722,7 +723,13 @@ def cheie_contor(citire: dict) -> tuple[str, str]:
     contor ar da două entități cu același `unique_id`.
     """
     serie = _primul_text(
-        citire, "meterSeries", "series", "meterCode", "meteringPointNo", "meteringPointCode"
+        citire,
+        "meterSeries",
+        "series",
+        "meterCode",
+        "meteringPointNo",
+        "meterPointNumber",
+        "meteringPointCode",
     )
     cadran = _primul_text(citire, "dialCode", "dial")
     if cadran.casefold() in CADRANE_PRINCIPALE:
@@ -752,8 +759,23 @@ def ultimele_citiri(citiri: list[dict]) -> dict[tuple[str, str], dict]:
     return {cheie: citire for cheie, (_, citire) in ultimele.items()}
 
 
-class IndexContorSensor(NovaEntity):
-    """Ultimul index cunoscut al unui contor, din istoricul de citiri."""
+def _sufix_si_nume(cheie: tuple[str, str], baza_cheie: str, baza_nume: str) -> tuple[str, str]:
+    """Cheia entității și numele afișat pentru un index al unui contor.
+
+    Un contor cu cadranul principal păstrează identificatorul din versiunile
+    anterioare, care conținea doar seria.
+    """
+    serie, cadran = cheie
+    sufix = slugify(serie) if serie else "necunoscut"
+    nume = f"{baza_nume} {serie}" if serie else baza_nume
+    if cadran:
+        sufix = f"{sufix}_{slugify(cadran)}"
+        nume = f"{nume} ({cadran})"
+    return f"{baza_cheie}_{sufix}", nume
+
+
+class _IndexDeContor(NovaEntity):
+    """Baza senzorilor de index: unitate, clasă, cumulativ."""
 
     _attr_icon = "mdi:counter"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
@@ -763,28 +785,36 @@ class IndexContorSensor(NovaEntity):
         coordinator: NovaCoordinator,
         utilitate: str,
         cheie: tuple[str, str],
-        citire: dict,
+        exemplu: dict,
+        baza_cheie: str,
+        baza_nume: str,
     ) -> None:
         self._cheie_contor = cheie
-        serie, cadran = cheie
-
-        # Un contor cu cadranul principal păstrează identificatorul din
-        # versiunile anterioare, care conținea doar seria.
-        sufix = slugify(serie) if serie else "necunoscut"
-        nume = f"Index contor {serie}" if serie else "Index contor"
-        if cadran:
-            sufix = f"{sufix}_{slugify(cadran)}"
-            nume = f"{nume} ({cadran})"
-
-        super().__init__(coordinator, utilitate, f"index_contor_{sufix}", nume)
+        cheie_entitate, nume = _sufix_si_nume(cheie, baza_cheie, baza_nume)
+        super().__init__(coordinator, utilitate, cheie_entitate, nume)
 
         # O unitate lipsă sau goală înseamnă unitatea obișnuită a utilității;
         # fără ea, senzorul ar pierde clasa și ar ieși din tabloul Energie.
-        unitate = normalizeaza_unitatea(citire.get("unit")) or UNITATE_IMPLICITA.get(
+        unitate = normalizeaza_unitatea(exemplu.get("unit")) or UNITATE_IMPLICITA.get(
             utilitate, UNITATE_ELECTRICITATE
         )
         self._attr_native_unit_of_measurement = unitate
         self._attr_device_class = CLASA_INDEX.get((utilitate, str(unitate)))
+
+
+class IndexContorSensor(_IndexDeContor):
+    """Ultimul index cunoscut al unui contor, din istoricul de citiri."""
+
+    def __init__(
+        self,
+        coordinator: NovaCoordinator,
+        utilitate: str,
+        cheie: tuple[str, str],
+        citire: dict,
+    ) -> None:
+        super().__init__(
+            coordinator, utilitate, cheie, citire, "index_contor", "Index contor"
+        )
 
     def _citire(self) -> dict | None:
         """Ultima citire a acestui index, din datele proaspete."""
@@ -824,6 +854,63 @@ class IndexContorSensor(NovaEntity):
         }
 
 
+def contoarele_cu_index(contoare: list[dict]) -> dict[tuple[str, str], dict]:
+    """Contoarele cu index facturat, câte unul pe (serie, cadran)."""
+    return {
+        cheie_contor(contor): contor
+        for contor in contoare
+        if _index_facturat(contor) is not None
+    }
+
+
+def _index_facturat(contor: dict) -> float | None:
+    """Ultimul index facturat; 0 înseamnă, ca la citiri, „lipsă"."""
+    return _nenul(prima_valoare(contor, "currentIndex", "lastIndex", "index"))
+
+
+class IndexFacturatSensor(_IndexDeContor):
+    """Ultimul index facturat al unui contor.
+
+    Vine din lista de contoare a locului de consum, disponibilă oricând — nu
+    doar în perioada de autocitire —, și urmează facturile, nu citirile.
+    """
+
+    def __init__(
+        self,
+        coordinator: NovaCoordinator,
+        utilitate: str,
+        cheie: tuple[str, str],
+        contor: dict,
+    ) -> None:
+        super().__init__(
+            coordinator, utilitate, cheie, contor, "index_facturat", "Index facturat"
+        )
+
+    def _contor(self) -> dict | None:
+        """Contorul acestui index, din datele proaspete."""
+        contoare = pentru_utilitate(
+            self._date.get("meters", []),
+            self._utilitate,
+            self._date.get("utilities", []),
+        )
+        return contoarele_cu_index(contoare).get(self._cheie_contor)
+
+    @property
+    def native_value(self) -> Any:
+        contor = self._contor()
+        return None if contor is None else _index_facturat(contor)
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.native_value is not None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        if self._contor() is None:
+            return {}
+        return {"Serie contor": self._cheie_contor[0] or VALOARE_NECUNOSCUTA}
+
+
 # ──────────────────────────────────────────────
 # Construirea entităților
 # ──────────────────────────────────────────────
@@ -852,6 +939,10 @@ def construieste_senzori(coordinator: NovaCoordinator) -> list[NovaEntity]:
         citiri = pentru_utilitate(date.get("self_readings", []), utilitate, utilitati)
         for cheie, citire in ultimele_citiri(citiri).items():
             entitati.append(IndexContorSensor(coordinator, utilitate, cheie, citire))
+
+        contoare = pentru_utilitate(date.get("meters", []), utilitate, utilitati)
+        for cheie, contor in contoarele_cu_index(contoare).items():
+            entitati.append(IndexFacturatSensor(coordinator, utilitate, cheie, contor))
 
     return entitati
 

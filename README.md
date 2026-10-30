@@ -23,6 +23,7 @@ Integrare custom pentru [Home Assistant](https://www.home-assistant.io/) care ad
 - **Plăți** — arhiva plăților din anul curent, cu total
 - **Contract** — stare, număr, tip de client și datele de semnare
 - **Index contor** — câte un senzor pentru fiecare contor, identificat prin serie, cu ultimul index din istoricul de citiri
+- **Index facturat** — ultimul index facturat al fiecărui contor, disponibil oricând, nu doar în perioada de autocitire
 - **Formatare românească** — sume ca `1.234,56 lei`, date ca `15.04.2026`
 - **Reconfigurare fără reinstalare** — intervalul și conturile monitorizate se schimbă din interfață
 - **Diagnostic** — raport descărcabil pentru tichete de suport, fără parolă și token, cu emailul mascat
@@ -43,10 +44,13 @@ Datele vin de la backend-ul aplicației de client Nova „MyAccount" (`myaccount
 | `/invoices` | facturi, inclusiv cele de surplus de prosumator |
 | `/payments` | plăți |
 | `/self-readings` | istoricul citirilor de index, pe contor și cadran |
+| `/metering-points/{număr}/meters` | contoarele fiecărui loc de consum, cu ultimul index facturat |
 
 Autentificarea se face cu email și parolă. Tokenul primit este reînnoit automat când expiră, fără să fie nevoie de vreo intervenție.
 
 > **Versiunea 1.1.0** trece integrarea pe acest backend. Cel vechi, `backend.nova-energy.ro/api`, răspunde `404` la toate rutele, deci versiunea 1.0.0 nu mai primește date. Entitățile rămân aceleași — sold, facturi, plăți, contract și indexul contoarelor cu un singur cadran, identificate prin serie (cazul obișnuit) — cu același `entity_id` și cu tot istoricul. Două excepții: un contor cu tarif dublu primește câte un senzor pentru zi și pentru noapte (`…_eaz`, `…_ean`), iar un contor fără serie primește alt identificator. Senzorul vechi rămâne atunci `unavailable` și poate fi șters din interfață.
+
+> **Versiunea 1.2.0** adaugă **indexul facturat**: un senzor nou pentru fiecare contor, cu ultimul index pe care Nova l-a facturat. Entitățile existente nu se schimbă.
 
 > Integrarea **nu trimite** nimic către contul tău: în versiunea 1.x citește doar. Trimiterea autocitirilor este planificată separat, pentru o versiune viitoare.
 
@@ -130,12 +134,13 @@ Separarea urmează datele: soldul, facturile și plățile sunt ale contului, ia
 |---|---|---|---|
 | Date contract | `date_contract` | `Activ` / `Inactiv` | `mdi:file-sign` |
 | Index contor | `index_contor_{serie}` | ultimul index citit | `mdi:counter` |
+| Index facturat | `index_facturat_{serie}` | ultimul index facturat | `mdi:counter` |
 
 Soldul, facturile și plățile stau pe cont pentru că API-ul le întoarce pe cont. Dacă ar fi filtrate pe utilitate și platforma nu marchează utilitatea pe fiecare factură, ele ar dispărea complet de pe un cont cu gaz și electricitate — iar „Factură restantă" ar spune liniștit „Nu" în timp ce ai de plată. Totalurile pe cont sunt corecte oricum; se pierde doar defalcarea.
 
 **Senzorul de sold prosumator apare doar pe conturile de prosumator.** Soldul de prosumator vine ca `0` și pentru cine nu e prosumator, deci un `0` nu spune nimic: senzorul apare când platforma marchează contul ca prosumator, când soldul de prosumator e nenul sau când există un contract de prosumator. Valoarea lui e creditul din energia injectată.
 
-`index_contor` apare o dată pentru fiecare contor din istoricul de citiri și arată indexul din cea mai recentă perioadă. Un contor de energie cu tarif dublu are două indexuri, zi și noapte, cu cadranul la final: `index_contor_{serie}_eaz` și `index_contor_{serie}_ean`.
+`index_contor` apare o dată pentru fiecare contor din istoricul de citiri și arată indexul din cea mai recentă perioadă. `index_facturat` apare pentru fiecare contor al locului de consum și arată ultimul index facturat — cel din aplicația Nova, de la „Ultimul index facturat" —, disponibil oricând, chiar și pentru un contor fără nicio citire în istoric. Primul urmează citirile, al doilea facturile, deci de obicei rămâne puțin în urmă. Pentru tabloul Energie alege unul singur dintre ele, nu pe amândouă. Un contor de energie cu tarif dublu are două indexuri, zi și noapte, cu cadranul la final: `…_{serie}_eaz` și `…_{serie}_ean`.
 
 Când o valoare lipsește temporar, senzorul devine `unavailable` — niciodată `0`, ca să nu strice statisticile pe termen lung.
 
@@ -202,6 +207,12 @@ Consum: "145,00"
 ```
 
 „Tip citire" folosește etichetele aplicației Nova — `Citit`, `Autocitit`, `Estimat`, `Facturat`, `Citire distribuitor`, `Convenție consum`, `Acord avansat`, iar `Autocitire` pentru o citire fără tip — ca un index estimat să se deosebească de unul citit efectiv. Un tip necunoscut apare așa cum îl trimite Nova.
+
+**Index facturat**
+
+```yaml
+Serie contor: "GS1234567"
+```
 
 ---
 
@@ -285,7 +296,7 @@ custom_components/novaenergy/
 2. **Doar citire în versiunea 1.x.** Trimiterea autocitirilor, convenția de consum și revizia tehnică la gaz urmează într-o versiune viitoare.
 3. **Datele apar atât cât le expune API-ul.** Dacă platforma nu întoarce un anumit câmp pentru contul tău, senzorul respectiv rămâne indisponibil în loc să afișeze o valoare inventată.
 4. **Contoarele sunt identificate prin serie.** Dacă furnizorul schimbă contorul, apare o entitate nouă — cea veche rămâne în istoric.
-5. **Indexul vine din istoricul de citiri.** Un contor fără nicio citire în istoric nu primește senzor până la prima citire, iar indexul se actualizează odată cu istoricul, nu în timp real.
+5. **Indexurile nu sunt în timp real.** `index_contor` se actualizează odată cu istoricul de citiri, iar `index_facturat` odată cu facturile; un contor fără nicio citire în istoric are doar index facturat.
 
 ### Starea validărilor automate
 
@@ -296,7 +307,8 @@ teste rulează la fiecare push.
 
 Forma răspunsurilor noului API a fost confirmată pe un cont adevărat, de
 electricitate, prosumator: autentificarea, soldul, contractele, punctele de
-consum, facturile (de furnizare și de surplus), plățile și istoricul de citiri.
+consum, contoarele cu indexul facturat, facturile (de furnizare și de surplus),
+plățile și istoricul de citiri.
 Stările facturilor și codurile de cadran vin din aplicația oficială Nova. Nu au
 putut fi verificate pe date reale, pentru că acel cont nu le are:
 

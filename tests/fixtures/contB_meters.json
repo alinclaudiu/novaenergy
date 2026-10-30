@@ -1,0 +1,32 @@
+{
+  "LC-00000022": {
+    "data": {
+      "meters": [
+        {
+          "currentIndex": 1140,
+          "dialCode": "ZZGN",
+          "meterCode": "COD-GS7654321",
+          "meterPointNumber": "LC-00000022",
+          "series": "GS7654321",
+          "unit": "M3"
+        }
+      ]
+    },
+    "message": "Meters retrieved successfully"
+  },
+  "LC-00000033": {
+    "data": {
+      "meters": [
+        {
+          "currentIndex": 44900,
+          "dialCode": "EA",
+          "meterCode": "COD-EL9999999",
+          "meterPointNumber": "LC-00000033",
+          "series": "EL9999999",
+          "unit": "KWH"
+        }
+      ]
+    },
+    "message": "Meters retrieved successfully"
+  }
+}

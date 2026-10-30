@@ -1,0 +1,17 @@
+{
+  "LC-00000011": {
+    "data": {
+      "meters": [
+        {
+          "currentIndex": 5885,
+          "dialCode": "ZZGN",
+          "meterCode": "COD-GS1234567",
+          "meterPointNumber": "LC-00000011",
+          "series": "GS1234567",
+          "unit": "M3"
+        }
+      ]
+    },
+    "message": "Meters retrieved successfully"
+  }
+}

@@ -1,7 +1,8 @@
 """Coordinatorul de actualizare pentru un cont Nova.
 
 Un coordinator deservește un singur cont CRM, dar toate utilitățile lui: un
-singur val de cereri aduce datele și pentru gaz, și pentru electricitate.
+singur val de cereri aduce datele și pentru gaz, și pentru electricitate, iar un
+al doilea, contoarele fiecărui loc de consum.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import logging
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
+from urllib.parse import quote
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -24,6 +26,7 @@ from .const import (
     URL_CONTRACTS,
     URL_INVOICES,
     URL_METERING_POINTS,
+    URL_METERS,
     URL_PAYMENTS,
     URL_SELF_READINGS,
     UTILITY_ELECTRICITY,
@@ -63,6 +66,29 @@ ENDPOINTURI: dict[str, Endpoint] = {
 }
 
 UTILITATI_CUNOSCUTE = (UTILITY_GAS, UTILITY_ELECTRICITY)
+
+UNITATI_GAZ = frozenset({"m3", "m³", "mc", "smc", "nmc"})
+UNITATI_ELECTRICITATE = frozenset({"kwh", "wh", "mwh", "kvarh", "varh"})
+
+
+def _utilitatea_contorului(contor: dict) -> str | None:
+    """Utilitatea unui contor de pe un loc de consum cu gaz și electricitate.
+
+    Contoarele nu o poartă; se recunoaște după cadran („ZZGN" la gaz, „EA…" la
+    electricitate), apoi după unitate. Fără niciun indiciu, rămâne neatribuit
+    — mai bine fără senzor decât un contor de gaz pe dispozitivul de curent.
+    """
+    cadran = str(contor.get("dialCode") or "").strip().casefold()
+    if cadran == "zzgn":
+        return UTILITY_GAS
+    if cadran.startswith("ea"):
+        return UTILITY_ELECTRICITY
+    unitate = str(contor.get("unit") or "").strip().casefold()
+    if unitate in UNITATI_GAZ:
+        return UTILITY_GAS
+    if unitate in UNITATI_ELECTRICITATE:
+        return UTILITY_ELECTRICITY
+    return None
 
 
 def _normalizeaza(endpoint: Endpoint, raspuns: Any) -> Any:
@@ -118,7 +144,7 @@ class NovaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     # ──────────────────────────────────────────
     async def _async_update_data(self) -> dict[str, Any]:
-        """Aduce toate datele contului într-un singur val de cereri."""
+        """Aduce toate datele contului: un val de cereri în paralel, apoi contoarele."""
         await self._asigura_contul_curent()
 
         rezultate = await asyncio.gather(
@@ -161,11 +187,80 @@ class NovaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             date[nume] = _normalizeaza(endpoint, rezultat)
 
+        # Contoarele se cer pe loc de consum, deci abia după ce se știu locurile.
+        if "metering_points" in esuate:
+            date["meters"] = []
+            esuate.add("meters")
+        else:
+            date["meters"], contoare_complete = await self._aduce_contoarele(
+                date["metering_points"]
+            )
+            if not contoare_complete:
+                esuate.add("meters")
+
         # Senzorii trebuie să poată deosebi „nu există date" de „nu am reușit
         # să le aduc": altfel un endpoint căzut ar arăta ca un zero adevărat.
         date["endpointuri_esuate"] = frozenset(esuate)
         date["utilities"] = self._deduce_utilitatile(date)
         return date
+
+    async def _aduce_contoarele(self, puncte: list[dict]) -> tuple[list[dict], bool]:
+        """Contoarele fiecărui loc de consum, cu ultimul index facturat.
+
+        Ruta se cere o singură dată pe număr de loc de consum, chiar dacă mai
+        multe puncte (gaz și electricitate) îl împart. Contoarele nu poartă
+        utilitatea: o moștenesc de la loc, dacă acesta are una singură; altfel
+        se deduce din contor. Întoarce și dacă toate locurile au răspuns; un loc
+        căzut nu le oprește pe celelalte, doar senzorii lui rămân indisponibili.
+        """
+        utilitati_pe_numar: dict[str, set[str]] = {}
+        for punct in puncte:
+            numar = prima_valoare(punct, "number")
+            if numar is None or not str(numar).strip():
+                continue
+            utilitate = str(prima_valoare(punct, "utilityType", implicit="")).strip().casefold()
+            utilitati_pe_numar.setdefault(str(numar).strip(), set()).add(utilitate)
+        numere = list(utilitati_pe_numar)
+
+        rezultate = await asyncio.gather(
+            *(
+                self.client.async_get(URL_METERS.format(numar=quote(numar, safe="")))
+                for numar in numere
+            ),
+            return_exceptions=True,
+        )
+
+        contoare: list[dict] = []
+        complete = True
+        for pozitie, (numar, rezultat) in enumerate(zip(numere, rezultate, strict=True), start=1):
+            if isinstance(rezultat, NovaCredentialeRespinse):
+                raise ConfigEntryAuthFailed(
+                    f"Nova a respins credențialele: {rezultat}"
+                ) from rezultat
+            if isinstance(rezultat, Exception):
+                # Poziția, nu numărul locului de consum: logurile ajung publice.
+                _LOGGER.warning(
+                    "Contoarele locului de consum #%d al contului %s nu au putut fi citite: %s",
+                    pozitie,
+                    self.account_crm,
+                    rezultat,
+                )
+                complete = False
+                continue
+            utilitati = utilitati_pe_numar[numar] - {""}
+            for contor in extrage_lista(rezultat, "meters"):
+                contoare.append(
+                    {
+                        "utilityType": (
+                            next(iter(utilitati))
+                            if len(utilitati) == 1
+                            else _utilitatea_contorului(contor)
+                        ),
+                        "meterPointNumber": numar,
+                        **contor,
+                    }
+                )
+        return contoare, complete
 
     async def _asigura_contul_curent(self) -> None:
         """Comută sesiunea pe contul deservit, o singură dată."""

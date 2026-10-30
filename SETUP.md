@@ -135,9 +135,10 @@ Restul urmează tiparul `sensor.novaenergy_{crm}_{utilitate}_{sufix}`, cu utilit
 ```
 sensor.novaenergy_3047398_gaz_date_contract
 sensor.novaenergy_3047398_gaz_index_contor_gs1234567
+sensor.novaenergy_3047398_gaz_index_facturat_gs1234567
 ```
 
-Pe electricitate, același tipar cu `electricitate` în loc de `gaz`. Un contor de energie cu tarif dublu are două indexuri, cu cadranul la final: `…_index_contor_{serie}_eaz` (zi) și `…_index_contor_{serie}_ean` (noapte).
+Pe electricitate, același tipar cu `electricitate` în loc de `gaz`. Un contor de energie cu tarif dublu are două indexuri, cu cadranul la final: `…_{serie}_eaz` (zi) și `…_{serie}_ean` (noapte), atât la indexul citit, cât și la cel facturat.
 
 > Codurile CRM și seriile de contor de mai sus sunt exemple. Ale tale se văd în **Instrumente pentru dezvoltatori** → **Stări**, filtrând după `novaenergy`.
 

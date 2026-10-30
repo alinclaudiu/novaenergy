@@ -45,6 +45,14 @@ def factura(id_, emisa, scadenta, total, de_plata, stare, utilitate, tip="Supply
             "meteringPoints": [{"utilityType": utilitate, "address": "Strada Florilor 15, Iași",
                                 "amountTotal": total, "amountToPay": de_plata}]}
 
+def contoare(*elemente):
+    """Răspunsul rutei de contoare pentru fiecare loc de consum, după număr."""
+    return {numar: {"message": "Meters retrieved successfully", "data": {"meters": [
+        {"meterPointNumber": numar, "series": serie, "currentIndex": index,
+         "meterCode": f"COD-{serie}", "unit": unitate, "dialCode": cadran}
+        for (numar_contor, serie, index, unitate, cadran) in elemente if numar_contor == numar
+    ]}} for numar in dict.fromkeys(element[0] for element in elemente)}
+
 def citire(serie, perioada, vechi, nou, unitate, utilitate, cadran):
     zi, luna, an = perioada.split(".")
     return {"period": perioada, "periodStart": f"{an}-{luna}-{zi}", "periodEnd": f"{an}-{luna}-{zi}",
@@ -104,6 +112,9 @@ date = {
       citire("GS1234567", "01.02.2026", 5765, 5885, "m³", "gas", "ZZGN"),
     ]),
 
+  # Indexul facturat rămâne în urma ultimei citiri: factura vine după citire.
+  "contA_meters": contoare(("LC-00000011", "GS1234567", 5885, "M3", "ZZGN")),
+
   # Cont B: gaz + electricitate, prosumator, ca să acopere ambele ramuri.
   "contB_balance": sold(prosumator=45.30, este_prosumator=True),
   "contB_contracts": paginat([
@@ -123,6 +134,10 @@ date = {
       citire("GS7654321", "02.03.2026", 1140, 1200, "m³", "gas", "ZZGN"),
       citire("EL9999999", "02.03.2026", 44900, 45210, "kWh", "electricity", "EA"),
     ]),
+  "contB_meters": contoare(
+    ("LC-00000022", "GS7654321", 1140, "M3", "ZZGN"),
+    ("LC-00000033", "EL9999999", 44900, "KWH", "EA"),
+  ),
 }
 
 for nume, continut in date.items():

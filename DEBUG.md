@@ -99,7 +99,8 @@ Patru lucruri de observat:
   pildă „Config entry '…' for novaenergy integration could not authenticate" —
   conțin titlul intrării, adică emailul complet: înlocuiește-l înainte de a le
   publica.
-- Cererile pleacă în același val, deci ordinea lor în log poate varia de la o
+- Cererile pleacă în paralel — contoarele într-un al doilea val, după punctele
+  de consum —, deci ordinea lor în log poate varia de la o
   rulare la alta.
 - Pe contul principal nu apare nicio linie „Comutare pe contul…": sesiunea e
   deja pe el. Comutarea apare doar pentru conturile asociate.
@@ -124,7 +125,14 @@ WARNING Endpoint-ul opțional payments a eșuat pentru contul 3047398:
         HTTP 404 la https://…/payments
 ```
 
-Punctele de consum, facturile, plățile și citirile sunt opționale: dacă eșuează, senzorii care depind de ele devin `unavailable`, iar restul integrării merge mai departe. Un cont nou, fără istoric, primește liste goale, nu erori.
+Punctele de consum, contoarele, facturile, plățile și citirile sunt opționale: dacă eșuează, senzorii care depind de ele devin `unavailable`, iar restul integrării merge mai departe. Un cont nou, fără istoric, primește liste goale, nu erori.
+
+```
+WARNING Contoarele locului de consum #1 al contului 3047398 nu au putut fi citite:
+        HTTP 500 la https://…/metering-points/…/meters
+```
+
+Contoarele se cer pentru fiecare loc de consum în parte; un loc căzut lasă fără date doar senzorii de index facturat ai lui. Numărul locului de consum nu apare în log: e înlocuit cu poziția și cu „…".
 
 ### Un cont pornește mai târziu
 
@@ -189,7 +197,7 @@ ERROR Error fetching novaenergy 3047398 data: Nu s-au putut obține datele esen�
       (balance) pentru contul 3047398: HTTP 503 la https://…/dashboard/balance
 ```
 
-Soldul și contractele sunt obligatorii — fără ele nu se pot construi senzorii, așa că actualizarea se oprește și se reia la ciclul următor. Punctele de consum, facturile, plățile și citirile pot lipsi: senzorii care depind de ele devin `unavailable`, restul merg mai departe.
+Soldul și contractele sunt obligatorii — fără ele nu se pot construi senzorii, așa că actualizarea se oprește și se reia la ciclul următor. Punctele de consum, contoarele, facturile, plățile și citirile pot lipsi: senzorii care depind de ele devin `unavailable`, restul merg mai departe.
 
 ### Toate cererile dau 404
 
@@ -247,7 +255,7 @@ target:
 
 **Setări** → **Dispozitive și Servicii** → **Nova Energy România** → **Descarcă diagnostic**.
 
-Raportul conține starea fiecărui cont, câte facturi, plăți, contracte, puncte de consum și citiri au fost primite, și lista senzorilor activi. Adresa de email este mascată, iar parola și tokenul nu apar deloc. Conține însă numărul contului (codul CRM), iar numele senzorilor de index conțin seria contorului: înlocuiește-le înainte de a atașa raportul la un issue public, dacă nu vrei să fie vizibile.
+Raportul conține starea fiecărui cont, câte facturi, plăți, contracte, puncte de consum, contoare și citiri au fost primite, și lista senzorilor activi. Adresa de email este mascată, iar parola și tokenul nu apar deloc. Conține însă numărul contului (codul CRM), iar numele senzorilor de index conțin seria contorului: înlocuiește-le înainte de a atașa raportul la un issue public, dacă nu vrei să fie vizibile.
 
 ---
 

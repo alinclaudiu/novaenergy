@@ -26,6 +26,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import aiohttp
 
@@ -91,9 +92,19 @@ def scrie_fixtura(nume: str, date: Any) -> None:
     print(f"  ✔ {cale.relative_to(RADACINA)}")
 
 
+# Aceeași regulă ca în integrare (helpers.desfa_invelis), repetată aici ca
+# scriptul să ruleze și fără Home Assistant instalat.
+CHEI_INVELIS = frozenset({"data", "status", "success", "message", "code", "meta"})
+
+
 def desfa(raspuns: Any) -> Any:
-    """Scoate conținutul din învelișul {data, status, success} al API-ului."""
-    if isinstance(raspuns, dict) and "data" in raspuns and {"status", "success"} & set(raspuns):
+    """Scoate conținutul din învelișul API-ului: `{data, status, success}`,
+    `{message, data}` sau doar `{data}`."""
+    if (
+        isinstance(raspuns, dict)
+        and "data" in raspuns
+        and ({"status", "success"} & set(raspuns) or set(raspuns) <= CHEI_INVELIS)
+    ):
         return raspuns["data"]
     return raspuns
 
@@ -124,15 +135,39 @@ async def ia_tot(
     anteturi = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
     if cont:
         anteturi[ANTET_CONT_VIZUALIZAT] = cont
+    numere: list[str] = []
     for nume, url in ENDPOINTURI_GET.items():
         try:
             async with sesiune.get(url, headers=anteturi) as raspuns:
                 if raspuns.status != 200:
                     print(f"  · {nume}: HTTP {raspuns.status} (se ignoră)")
                     continue
-                scrie_fixtura(f"{prefix}_{nume}", await raspuns.json())
+                date = await raspuns.json()
+                scrie_fixtura(f"{prefix}_{nume}", date)
         except (aiohttp.ClientError, asyncio.TimeoutError) as eroare:
             print(f"  · {nume}: eroare de rețea ({eroare})")
+            continue
+        if nume == "metering_points":
+            puncte = (desfa(date) or {}).get("meteringPoints") or []
+            numere = [str(p["number"]) for p in puncte if isinstance(p, dict) and p.get("number")]
+
+    # Contoarele se cer pe numărul locului de consum (nu pe meteringPointId).
+    # În fișier, locurile apar ca „loc1", „loc2"…, nu cu numărul lor.
+    if not numere:
+        print("  · contoare: niciun număr de loc de consum găsit (se ignoră)")
+    contoare: dict[str, Any] = {}
+    for pozitie, numar in enumerate(numere, start=1):
+        url = f"{API_BASE}/metering-points/{quote(numar, safe='')}/meters"
+        try:
+            async with sesiune.get(url, headers=anteturi) as raspuns:
+                if raspuns.status != 200:
+                    print(f"  · contoare loc{pozitie}: HTTP {raspuns.status} (se ignoră)")
+                    continue
+                contoare[f"loc{pozitie}"] = await raspuns.json()
+        except (aiohttp.ClientError, asyncio.TimeoutError) as eroare:
+            print(f"  · contoare loc{pozitie}: eroare de rețea ({type(eroare).__name__})")
+    if contoare:
+        scrie_fixtura(f"{prefix}_meters", contoare)
 
 
 async def principal() -> None:

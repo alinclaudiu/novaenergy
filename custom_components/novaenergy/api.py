@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any
 
 import aiohttp
@@ -48,6 +49,15 @@ def _id_mascat(identificator: Any) -> str:
     """Identificatorul unui cont, în formă sigură pentru loguri publice."""
     text = str(identificator or "")
     return f"…{text[-4:]}" if len(text) > 4 else "…"
+
+
+# Unele rute au în cale numărul locului de consum, un identificator al clientului.
+_SEGMENT_LOC_DE_CONSUM = re.compile(r"(/metering-points/)[^/?#]+(?=/)")
+
+
+def _url_pentru_log(url: str) -> str:
+    """Adresa unei cereri, fără identificatorii din cale, pentru loguri și erori."""
+    return _SEGMENT_LOC_DE_CONSUM.sub(r"\1…", url)
 
 
 def _descrie_forma(date: Any, adancime: int = 0) -> str:
@@ -378,6 +388,7 @@ class NovaApiClient:
         pe care sesiunea îl vede încă (`cont_vizualizat`; `""` = niciunul).
         """
         anteturi = dict(HEADERS)
+        adresa = _url_pentru_log(url)
         token = token or self._token
         if cu_autentificare and token:
             anteturi["Authorization"] = f"Bearer {token}"
@@ -395,24 +406,27 @@ class NovaApiClient:
                     if raspuns.status == 401:
                         if not cu_autentificare:
                             raise NovaCredentialeRespinse(
-                                f"Credențiale respinse (401) la {url}"
+                                f"Credențiale respinse (401) la {adresa}"
                             )
-                        raise NovaAuthError(f"Acces respins (401) la {url}")
+                        raise NovaAuthError(f"Acces respins (401) la {adresa}")
                     if raspuns.status >= 400:
-                        raise NovaApiError(f"HTTP {raspuns.status} la {url}")
+                        raise NovaApiError(f"HTTP {raspuns.status} la {adresa}")
 
                     date = await raspuns.json(content_type=None)
                     if _LOGGER.isEnabledFor(logging.DEBUG):
                         _LOGGER.debug(
-                            "%s %s → %s", metoda, url, _descrie_forma(date)
+                            "%s %s → %s", metoda, adresa, _descrie_forma(date)
                         )
                     return date
 
         except NovaApiError:
             raise
         except TimeoutError as eroare:
-            raise NovaApiError(f"Timeout la {url}") from eroare
+            raise NovaApiError(f"Timeout la {adresa}") from eroare
         except aiohttp.ClientError as eroare:
-            raise NovaApiError(f"Eroare de rețea la {url}: {eroare}") from eroare
+            # Textul erorilor aiohttp poate repeta adresa întreagă.
+            raise NovaApiError(
+                f"Eroare de rețea la {adresa}: {_url_pentru_log(str(eroare))}"
+            ) from eroare
         except ValueError as eroare:
-            raise NovaApiError(f"Răspuns invalid de la {url}: {eroare}") from eroare
+            raise NovaApiError(f"Răspuns invalid de la {adresa}: {eroare}") from eroare

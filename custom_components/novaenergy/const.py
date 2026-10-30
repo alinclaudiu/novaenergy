@@ -30,6 +30,9 @@ URL_SWITCH = f"{API_BASE}/auth/switch-account"
 URL_BALANCE = f"{API_BASE}/dashboard/balance"
 URL_CONTRACTS = f"{API_BASE}/contracts"
 URL_METERING_POINTS = f"{API_BASE}/metering-points"
+# Contoarele unui loc de consum, cu ultimul index facturat. Ruta cere numărul
+# locului de consum (`number`), nu `meteringPointId`.
+URL_METERS = f"{API_BASE}/metering-points/{{numar}}/meters"
 URL_INVOICES = f"{API_BASE}/invoices"
 URL_PAYMENTS = f"{API_BASE}/payments"
 URL_SELF_READINGS = f"{API_BASE}/self-readings"

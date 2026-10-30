@@ -43,6 +43,7 @@ PREFIX = _CONT["prefix_utilitate"]
 PREFIX_CONT = _CONT["prefix_cont"]
 
 BUCATI = {
+    "/meters": "principal_meters",
     "dashboard/balance": "principal_balance",
     "contracts": "principal_contracts",
     "metering-points": "principal_metering_points",
@@ -56,9 +57,11 @@ def _client_real(session, email, password, timeout=30):
     client = AsyncMock()
 
     async def _get(url, params=None):
+        from .conftest import raspuns_pentru
+
         for bucata, nume in BUCATI.items():
             if bucata in url:
-                return incarca(nume)
+                return raspuns_pentru(incarca(nume), url)
         return {}
 
     async def _get_all(url, params=None):
@@ -101,7 +104,8 @@ async def test_integrarea_porneste_pe_contul_real(hass, cont_real):
 
 async def test_entitatile_si_identificatorii_raman_cei_din_versiunea_1_0(hass, cont_real):
     """Schimbarea API-ului nu are voie să schimbe entitățile: un `unique_id`
-    nou ar rupe istoricul, tablourile și automatizările utilizatorului."""
+    nou ar rupe istoricul, tablourile și automatizările utilizatorului. Cele
+    șapte din 1.0 rămân neatinse; 1.2 adaugă doar indexul facturat."""
     from homeassistant.helpers import entity_registry as er
 
     registru = er.async_get(hass)
@@ -118,6 +122,7 @@ async def test_entitatile_si_identificatorii_raman_cei_din_versiunea_1_0(hass, c
         "arhiva_plati",
         "electricitate_date_contract",
         f"electricitate_index_contor_{SERIE}",
+        f"electricitate_index_facturat_{SERIE}",  # nou în 1.2
     )
     assert ale_integrarii == {
         f"sensor.novaenergy_{CRM_REAL}_{sufix}": f"novaenergy_{CRM_REAL}_{sufix}"
@@ -224,3 +229,15 @@ async def test_dispozitivele_raman_cele_din_versiunea_1_0(hass, cont_real):
     cont = dupa_identificator[(DOMAIN, CRM_REAL)]
     utilitate = dupa_identificator[(DOMAIN, f"{CRM_REAL}_electricity")]
     assert utilitate.via_device_id == cont.id
+
+
+async def test_indexul_facturat(hass, cont_real):
+    """Ultimul index facturat, din contoarele locului de consum — disponibil și
+    în afara perioadei de autocitire."""
+    stare = hass.states.get(f"{PREFIX}_index_facturat_{SERIE}")
+    assert stare is not None
+    assert float(stare.state) == 4300.0
+    assert stare.attributes["unit_of_measurement"] == "kWh"   # API-ul scrie „KWH"
+    assert stare.attributes["device_class"] == "energy"
+    assert stare.attributes["state_class"] == "total_increasing"
+    assert stare.attributes["Serie contor"] == SERIE

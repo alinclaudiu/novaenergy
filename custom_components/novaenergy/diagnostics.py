@@ -35,6 +35,7 @@ async def async_get_config_entry_diagnostics(
                 "numar_contracte": len(date.get("contracts", [])),
                 "numar_puncte_masurare": len(date.get("metering_points", [])),
                 "numar_citiri_index": len(date.get("self_readings", [])),
+                "numar_contoare": len(date.get("meters", [])),
                 # Ce nu s-a putut aduce explică de ce lipsesc unii senzori.
                 "endpointuri_esuate": sorted(date.get("endpointuri_esuate", [])),
             }

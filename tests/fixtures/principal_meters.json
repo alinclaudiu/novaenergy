@@ -1,0 +1,17 @@
+{
+  "LC-00000001": {
+    "data": {
+      "meters": [
+        {
+          "currentIndex": 4300.0,
+          "dialCode": "EA",
+          "meterCode": "CTFZ-0000001",
+          "meterPointNumber": "LC-00000001",
+          "series": "1234567890000001",
+          "unit": "KWH"
+        }
+      ]
+    },
+    "message": "Meters retrieved successfully"
+  }
+}

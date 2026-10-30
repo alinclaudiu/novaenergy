@@ -61,8 +61,10 @@ def date_intrare():
     }
 
 
-# Fragmentul din URL → sufixul fixturii.
+# Fragmentul din URL → sufixul fixturii. Contoarele întâi: adresa lor conține
+# și „metering-points".
 BUCATI_URL = {
+    "/meters": "meters",
     "dashboard/balance": "balance",
     "contracts": "contracts",
     "metering-points": "metering_points",
@@ -70,6 +72,20 @@ BUCATI_URL = {
     "payments": "payments",
     "self-readings": "self_readings",
 }
+
+
+def raspuns_pentru(fixtura, url: str):
+    """Răspunsul unei fixturi pentru `url`.
+
+    Fixturile de contoare (`*_meters`) țin răspunsul fiecărui loc de consum sub
+    numărul lui, ca în ruta reală `/metering-points/{număr}/meters`.
+    """
+    if "/meters" in url:
+        from urllib.parse import unquote
+
+        numar = unquote(url.rsplit("/meters", 1)[0].rsplit("/", 1)[-1])
+        return (fixtura or {}).get(numar, {"data": {"meters": []}})
+    return fixtura
 
 
 def fabrica_client(esueaza_pentru=None, suprascrieri=None, login="login_multicont"):
@@ -99,9 +115,9 @@ def fabrica_client(esueaza_pentru=None, suprascrieri=None, login="login_multicon
                 if bucata in url:
                     cheie = f"{prefix}_{nume}"
                     if cheie in suprascrieri:
-                        return suprascrieri[cheie]
+                        return raspuns_pentru(suprascrieri[cheie], url)
                     try:
-                        return incarca(cheie)
+                        return raspuns_pentru(incarca(cheie), url)
                     except FileNotFoundError:
                         return {}
             return {}

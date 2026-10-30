@@ -158,12 +158,15 @@ async def test_fetchul_este_cu_adevarat_concurent(hass, fixtura):
     """
     import asyncio
 
-    numar_endpointuri = 6
+    numar_endpointuri = len(ENDPOINTURI)
     bariera = asyncio.Barrier(numar_endpointuri)
     de_baza = _client_fals(fixtura)
+    primul_val = {endpoint.url for endpoint in ENDPOINTURI.values()}
 
     async def _get_blocat(url, params=None):
-        await bariera.wait()
+        # Contoarele vin în al doilea val, după locurile de consum.
+        if url in primul_val:
+            await bariera.wait()
         return await de_baza.async_get.side_effect(url, params)
 
     async def _get_all_blocat(url, params=None):
@@ -249,3 +252,144 @@ async def test_comutarea_esuata_e_reincercata_la_ciclul_urmator(hass, fixtura):
         await coord._async_update_data()
     await coord._async_update_data()
     assert client.async_switch_account.await_count == 2
+
+
+# ──────────────────────────────────────────────
+# Contoarele (indexul facturat)
+# ──────────────────────────────────────────────
+def _client_cu_contoare(fixtura, prefix="contB", contoare=None, erori_contoare=None):
+    """Client fals care răspunde și pe ruta de contoare, după numărul locului."""
+    from .conftest import raspuns_pentru
+
+    contoare = fixtura(f"{prefix}_meters") if contoare is None else contoare
+    erori_contoare = erori_contoare or {}
+    client = _client_fals(fixtura, prefix=prefix)
+    de_baza = client.async_get.side_effect
+
+    async def _get(url, params=None):
+        if url.endswith("/meters"):
+            for numar, eroare in erori_contoare.items():
+                if f"/{numar}/" in url:
+                    raise eroare
+            return raspuns_pentru(contoare, url)
+        return await de_baza(url, params)
+
+    client.async_get = AsyncMock(side_effect=_get)
+    return client
+
+
+async def test_contoarele_se_cer_pe_numarul_locului_de_consum(hass, fixtura):
+    """Ruta cere `number`, nu `meteringPointId`, iar contoarele moștenesc
+    utilitatea locului lor de consum."""
+    client = _client_cu_contoare(fixtura)
+    date = await _coordinator(hass, client)._async_update_data()
+
+    adrese = [apel.args[0] for apel in client.async_get.await_args_list]
+    assert any(adresa.endswith("/metering-points/LC-00000022/meters") for adresa in adrese)
+    assert any(adresa.endswith("/metering-points/LC-00000033/meters") for adresa in adrese)
+    utilitati = {contor["series"]: contor["utilityType"] for contor in date["meters"]}
+    assert utilitati == {"GS7654321": "gas", "EL9999999": "electricity"}
+    assert "meters" not in date["endpointuri_esuate"]
+
+
+async def test_un_loc_de_consum_cazut_nu_le_opreste_pe_celelalte(hass, fixtura, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    client = _client_cu_contoare(
+        fixtura, erori_contoare={"LC-00000022": NovaApiError("HTTP 500")}
+    )
+    date = await _coordinator(hass, client)._async_update_data()
+
+    # Logurile ajung în issue-uri publice: locul apare prin poziție, nu prin număr.
+    assert "#1" in caplog.text
+    assert "LC-00000022" not in caplog.text
+
+    assert [contor["series"] for contor in date["meters"]] == ["EL9999999"]
+    assert "meters" in date["endpointuri_esuate"]
+    assert date["balance"]  # restul actualizării merge mai departe
+
+
+async def test_fara_locuri_de_consum_nu_se_cer_contoare(hass, fixtura):
+    client = _client_fals(fixtura, erori={URL_METERING_POINTS: NovaApiError("picat")})
+    date = await _coordinator(hass, client)._async_update_data()
+
+    assert date["meters"] == []
+    assert {"metering_points", "meters"} <= date["endpointuri_esuate"]
+    assert not [
+        apel for apel in client.async_get.await_args_list if apel.args[0].endswith("/meters")
+    ]
+
+
+async def test_parola_respinsa_la_contoare_cere_reautentificare(hass, fixtura):
+    client = _client_cu_contoare(
+        fixtura, erori_contoare={"LC-00000022": NovaCredentialeRespinse("respinsă")}
+    )
+    with pytest.raises(ConfigEntryAuthFailed):
+        await _coordinator(hass, client)._async_update_data()
+
+
+def _contoare_pe_loc(numar, *contoare):
+    return {numar: {"data": {"meters": [{"meterPointNumber": numar, **c} for c in contoare]}}}
+
+
+GAZ = {"series": "GS7654321", "currentIndex": 1140, "unit": "M3", "dialCode": "ZZGN"}
+CURENT = {"series": "EL9999999", "currentIndex": 44900, "unit": "KWH", "dialCode": "EA"}
+
+
+@pytest.mark.parametrize(
+    ("raspuns", "asteptat"),
+    [
+        ((GAZ, CURENT), {"GS7654321": "gas", "EL9999999": "electricity"}),
+        ((CURENT,), {"EL9999999": "electricity"}),
+        (({"series": "X1", "currentIndex": 5, "unit": "m³"},), {"X1": "gas"}),
+        (({"series": "X2", "currentIndex": 5},), {"X2": None}),  # fără indiciu: neatribuit
+    ],
+)
+async def test_locul_comun_gazului_si_electricitatii(hass, fixtura, raspuns, asteptat):
+    """Dacă gazul și electricitatea împart numărul locului de consum, ruta se
+    cere o singură dată, iar utilitatea fiecărui contor se deduce din el — un
+    contor de gaz nu are voie să apară și pe dispozitivul de electricitate."""
+    puncte = fixtura("contB_metering_points")
+    for punct in puncte["data"]["meteringPoints"]:
+        punct["number"] = "LC-00000022"
+    client = _client_cu_contoare(fixtura, contoare=_contoare_pe_loc("LC-00000022", *raspuns))
+    de_baza = client.async_get.side_effect
+
+    async def _get(url, params=None):
+        if url == URL_METERING_POINTS:
+            return puncte
+        return await de_baza(url, params)
+
+    client.async_get = AsyncMock(side_effect=_get)
+    date = await _coordinator(hass, client)._async_update_data()
+
+    cereri = [a.args[0] for a in client.async_get.await_args_list if a.args[0].endswith("/meters")]
+    assert len(cereri) == 1
+    assert {c["series"]: c["utilityType"] for c in date["meters"]} == asteptat
+
+
+@pytest.mark.parametrize("fara_numar", ["lipsă", None, "", "   "])
+async def test_locul_fara_numar_e_sarit(hass, fixtura, fara_numar):
+    """Un loc de consum fără număr nu poate avea contoare cerute; ceilalți merg
+    mai departe, fără ca actualizarea să fie marcată drept incompletă."""
+    puncte = fixtura("contB_metering_points")
+    if fara_numar == "lipsă":
+        del puncte["data"]["meteringPoints"][0]["number"]
+    else:
+        puncte["data"]["meteringPoints"][0]["number"] = fara_numar
+    client = _client_cu_contoare(fixtura)
+    de_baza = client.async_get.side_effect
+
+    async def _get(url, params=None):
+        if url == URL_METERING_POINTS:
+            return puncte
+        return await de_baza(url, params)
+
+    client.async_get = AsyncMock(side_effect=_get)
+    date = await _coordinator(hass, client)._async_update_data()
+
+    cereri = [a.args[0] for a in client.async_get.await_args_list if a.args[0].endswith("/meters")]
+    assert len(cereri) == 1 and cereri[0].endswith("/metering-points/LC-00000033/meters")
+    assert [c["series"] for c in date["meters"]] == ["EL9999999"]
+    assert "meters" not in date["endpointuri_esuate"]

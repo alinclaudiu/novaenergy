@@ -3,8 +3,9 @@
 ## Forma reală a API-ului
 
 `login.json` și `principal_*.json` reproduc **forma reală** a răspunsurilor noului
-backend (`myaccount-admin.nova-energy.ro/api/v1`), confirmată rulând
-`scripts/explorare_api.py` pe un cont adevărat. Toate valorile sunt înlocuite cu
+backend (`myaccount-admin.nova-energy.ro/api/v1`), confirmată pe un cont adevărat —
+cu `scripts/explorare_api.py` și, pentru ruta de contoare, cu o captură separată pe
+același cont. Toate valorile sunt înlocuite cu
 date de exemplu, scrise de mână; structura este cea autentică:
 
 - autentificarea vine învelită: `{data: {session, loggedInAccount, viewedAccount, preferences}, status, success}`,
@@ -14,6 +15,11 @@ date de exemplu, scrise de mână; structura este cea autentică:
   `/payments` → `data.payments`, `/metering-points` → `data.meteringPoints`,
   `/self-readings` → `data.selfReadings`; nu sunt paginate;
 - `/dashboard/balance` e un singur obiect: `{data: {total, prosumer, isProsumer, …}}`;
+- `/metering-points/{number}/meters` cere **numărul** locului de consum, nu
+  `meteringPointId`, și răspunde `{message, data: {meters: [{series, dialCode,
+  currentIndex, meterCode, unit, meterPointNumber}]}}`, cu unitatea în majuscule
+  (`"KWH"`); fixturile `*_meters.json` țin acest răspuns sub numărul fiecărui loc
+  de consum;
 - unele rute răspund `{message, data}` în loc de `{data}`;
 - `totalDocs` **nu** e de încredere — poate fi `0` deși `docs` are elemente;
 - utilitatea se numește `utilityType`, iar pe contracte `type` înseamnă tipul de

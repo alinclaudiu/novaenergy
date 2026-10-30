@@ -632,3 +632,58 @@ async def test_reautentificarea_intrerupta_nu_lasa_tokenul_mort(sesiune):
     with pytest.raises(NovaApiError):
         await client._reface_sesiunea(epoca)
     assert client._reautentifica.await_count == 1
+
+
+async def test_numarul_locului_de_consum_nu_ajunge_in_loguri(sesiune, caplog):
+    """Ruta de contoare are în cale numărul locului de consum; nici linia de
+    depanare, nici mesajul de eroare nu au voie să-l conțină."""
+    from custom_components.novaenergy.const import URL_METERS
+
+    caplog.set_level(logging.DEBUG)
+    ok = URL_METERS.format(numar="LC-00000001")
+    cazut = URL_METERS.format(numar="LC-00000002")
+    with aioresponses() as mock:
+        mock.post(URL_LOGIN, payload=LOGIN_CU_CONT)
+        mock.get(ok, payload={"data": {"meters": []}})
+        mock.get(cazut, status=500)
+
+        client = NovaApiClient(sesiune, "a@b.ro", "parola")
+        await client.async_get(ok)
+        with pytest.raises(NovaApiError) as eroare:
+            await client.async_get(cazut)
+
+    assert "LC-0000000" not in caplog.text
+    assert "LC-0000000" not in str(eroare.value)
+    assert "/metering-points/…/meters" in str(eroare.value)
+
+
+def _info_cerere(url):
+    from multidict import CIMultiDict, CIMultiDictProxy
+    from yarl import URL
+
+    return aiohttp.RequestInfo(URL(url), "GET", CIMultiDictProxy(CIMultiDict()), URL(url))
+
+
+@pytest.mark.parametrize(
+    "fabrica_erorii",
+    [
+        lambda url: aiohttp.TooManyRedirects(_info_cerere(url), ()),
+        lambda url: aiohttp.ClientResponseError(_info_cerere(url), (), status=400, message="x"),
+    ],
+)
+async def test_numarul_locului_nu_scapa_prin_textul_erorilor_aiohttp(sesiune, fabrica_erorii):
+    """aiohttp pune adresa întreagă în textul unor erori (redirecționări în
+    buclă, răspunsuri malformate); și acolo numărul locului trebuie mascat."""
+    from custom_components.novaenergy.const import URL_METERS
+
+    url = URL_METERS.format(numar="LC-00000002")
+    with aioresponses() as mock:
+        mock.post(URL_LOGIN, payload=LOGIN_CU_CONT)
+        mock.get(url, exception=fabrica_erorii(url))
+
+        client = NovaApiClient(sesiune, "a@b.ro", "parola")
+        with pytest.raises(NovaApiError) as eroare:
+            await client.async_get(url)
+
+    assert "LC-00000002" not in str(eroare.value)
+    assert "/metering-points/…/meters" in str(eroare.value)

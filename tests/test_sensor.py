@@ -746,3 +746,111 @@ async def test_doua_citiri_din_aceeasi_perioada(hass, date_intrare, inversat):
         hass, date_intrare, suprascrieri={"contA_self_readings": {"data": {"selfReadings": lista}}}
     )
     assert float(hass.states.get(f"{PREFIX_GAZ}_index_contor_gs1234567").state) == 6030
+
+
+# ──────────────────────────────────────────────
+# Indexul facturat
+# ──────────────────────────────────────────────
+PREFIX_B_GAZ_FACTURAT = f"{PREFIX_B_GAZ}_index_facturat"
+PREFIX_B_ELE_FACTURAT = f"{PREFIX_B_ELE}_index_facturat"
+
+
+def _contoare(*elemente):
+    """{număr loc de consum: răspunsul rutei de contoare}."""
+    rezultat: dict = {}
+    for numar, contor in elemente:
+        rezultat.setdefault(numar, {"data": {"meters": []}})["data"]["meters"].append(
+            {"meterPointNumber": numar, **contor}
+        )
+    return rezultat
+
+
+async def test_indexul_facturat_pe_fiecare_utilitate(hass, date_intrare):
+    date_intrare = {**date_intrare, "selected_accounts": [CRM_B]}
+    await _porneste(hass, date_intrare)
+
+    gaz = hass.states.get(f"{PREFIX_B_GAZ_FACTURAT}_gs7654321")
+    ele = hass.states.get(f"{PREFIX_B_ELE_FACTURAT}_el9999999")
+    assert float(gaz.state) == 1140
+    assert (gaz.attributes["unit_of_measurement"], gaz.attributes["device_class"]) == ("m³", "gas")
+    assert float(ele.state) == 44900
+    assert (ele.attributes["unit_of_measurement"], ele.attributes["device_class"]) == ("kWh", "energy")
+    assert ele.attributes["friendly_name"].endswith("Index facturat EL9999999")
+
+
+async def test_indexul_facturat_exista_si_fara_citiri(hass, date_intrare):
+    """Un contor fără nicio citire în istoric are totuși index facturat."""
+    date_intrare = {**date_intrare, "selected_accounts": [CRM_B]}
+    await _porneste(
+        hass, date_intrare,
+        suprascrieri={"contB_self_readings": {"data": {"selfReadings": []}}},
+    )
+    assert hass.states.get(f"{PREFIX_B_ELE}_index_contor_el9999999") is None
+    assert float(hass.states.get(f"{PREFIX_B_ELE_FACTURAT}_el9999999").state) == 44900
+
+
+@pytest.mark.parametrize("index", [0, None, ""])
+async def test_indexul_facturat_lipsa_nu_creeaza_senzor(hass, date_intrare, index):
+    """Ca la citiri, 0 înseamnă „fără index": luat drept valoare, Home Assistant
+    l-ar vedea ca o resetare a contorului."""
+    contoare = _contoare(("LC-00000033", {"series": "EL9999999", "currentIndex": index,
+                                          "unit": "KWH", "dialCode": "EA"}))
+    date_intrare = {**date_intrare, "selected_accounts": [CRM_B]}
+    await _porneste(hass, date_intrare, suprascrieri={"contB_meters": contoare})
+    assert hass.states.get(f"{PREFIX_B_ELE_FACTURAT}_el9999999") is None
+
+
+async def test_indexul_facturat_al_contorului_cu_tarif_dublu(hass, date_intrare):
+    contoare = _contoare(
+        ("LC-00000033", {"series": "EL5555555", "currentIndex": 900, "unit": "KWH", "dialCode": "EAZ"}),
+        ("LC-00000033", {"series": "EL5555555", "currentIndex": 300, "unit": "KWH", "dialCode": "EAN"}),
+    )
+    date_intrare = {**date_intrare, "selected_accounts": [CRM_B]}
+    await _porneste(hass, date_intrare, suprascrieri={"contB_meters": contoare})
+    assert float(hass.states.get(f"{PREFIX_B_ELE_FACTURAT}_el5555555_eaz").state) == 900
+    assert float(hass.states.get(f"{PREFIX_B_ELE_FACTURAT}_el5555555_ean").state) == 300
+
+
+async def test_contorul_disparut_devine_indisponibil(hass, date_intrare):
+    """Dacă un contor nu mai apare la loc de consum (înlocuit, demontat),
+    senzorul lui devine indisponibil, nu rămâne cu ultima valoare."""
+    date_intrare = {**date_intrare, "selected_accounts": [CRM_B]}
+    intrare = await _porneste(hass, date_intrare)
+    assert float(hass.states.get(f"{PREFIX_B_ELE_FACTURAT}_el9999999").state) == 44900
+
+    coordinator = intrare.runtime_data.coordinators[CRM_B]
+    fara_contoare = _contoare(("LC-00000022", {"series": "GS7654321", "currentIndex": 1140,
+                                               "unit": "M3", "dialCode": "ZZGN"}))
+    coordinator.client = fabrica_client(suprascrieri={"contB_meters": fara_contoare})(None, "a", "b")
+    await coordinator.client.async_switch_account("id-cont-b")
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(f"{PREFIX_B_ELE_FACTURAT}_el9999999").state == "unavailable"
+    assert float(hass.states.get(f"{PREFIX_B_GAZ_FACTURAT}_gs7654321").state) == 1140
+
+
+async def test_locul_cazut_nu_le_face_indisponibile_pe_celelalte(hass, date_intrare):
+    """Doar senzorii locului care n-a răspuns devin indisponibili."""
+    from custom_components.novaenergy.api import NovaApiError
+
+    date_intrare = {**date_intrare, "selected_accounts": [CRM_B]}
+    intrare = await _porneste(hass, date_intrare)
+
+    coordinator = intrare.runtime_data.coordinators[CRM_B]
+    client = fabrica_client()(None, "a", "b")
+    await client.async_switch_account("id-cont-b")
+    de_baza = client.async_get.side_effect
+
+    async def _get(url, params=None):
+        if "/LC-00000022/meters" in url:
+            raise NovaApiError("HTTP 500")
+        return await de_baza(url, params)
+
+    client.async_get.side_effect = _get
+    coordinator.client = client
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(f"{PREFIX_B_GAZ_FACTURAT}_gs7654321").state == "unavailable"
+    assert float(hass.states.get(f"{PREFIX_B_ELE_FACTURAT}_el9999999").state) == 44900
