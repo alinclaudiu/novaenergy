@@ -1,1 +1,61 @@
-{}
+{
+  "data": {
+    "balance": {
+      "isProsumer": false,
+      "processingPayments": 0,
+      "prosumer": 120.45,
+      "prosumerDue": 0,
+      "total": 0
+    },
+    "clePayableDocuments": [],
+    "invoices": [
+      {
+        "amountRemaining": -120.45,
+        "amountToPay": 0,
+        "amountTotal": "-120.45",
+        "balanceType": "Prosumer Surplus",
+        "dueDate": "15.09.2028",
+        "invoiceId": "NPE-000000001",
+        "issueDate": "15.09.2026",
+        "meteringPointAddress": "Strada Exemplu 10, Iași",
+        "meteringPointCode": "EMO0000001",
+        "meteringPointNumber": "LC-00000001",
+        "meteringPoints": [
+          {
+            "address": "Strada Exemplu 10, Iași",
+            "amountToPay": 0,
+            "amountTotal": -120.45,
+            "utilityType": "electricity"
+          }
+        ],
+        "pdfInvoiceStatus": true,
+        "status": "paid",
+        "utilityType": "electricity"
+      },
+      {
+        "amountRemaining": 0,
+        "amountToPay": 0,
+        "amountTotal": "12.34",
+        "balanceType": "Supply",
+        "dueDate": "15.10.2026",
+        "invoiceId": "NPE-000000002",
+        "issueDate": "15.09.2026",
+        "meteringPointAddress": "Strada Exemplu 10, Iași",
+        "meteringPointCode": "EMO0000001",
+        "meteringPointNumber": "LC-00000001",
+        "meteringPoints": [
+          {
+            "address": "Strada Exemplu 10, Iași",
+            "amountToPay": 0,
+            "amountTotal": 12.34,
+            "utilityType": "electricity"
+          }
+        ],
+        "pdfInvoiceStatus": true,
+        "status": "paid",
+        "utilityType": "electricity"
+      }
+    ],
+    "shouldPayAllBtnBeDisabled": true
+  }
+}

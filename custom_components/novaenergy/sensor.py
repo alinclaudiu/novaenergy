@@ -89,6 +89,25 @@ UNITATI_ECHIVALENTE = {
 }
 
 
+# Cadranele care nu primesc sufix în `entity_id`: energia activă la tarif unic
+# („EA") și gazul („ZZGN") — un contor cu un singur cadran păstrează astfel
+# identificatorul din versiunile anterioare, care conținea doar seria. Celelalte
+# (zi „EAZ", noapte „EAN") sunt indexuri distincte ale aceluiași contor.
+CADRANE_PRINCIPALE = frozenset({"", "ea", "zzgn"})
+
+# Tipurile de citire, cu etichetele din aplicația oficială. Fără tip, aplicația
+# afișează „Autocitire".
+TIPURI_CITIRE = {
+    "self-reading": "Autocitit",
+    "reading": "Citit",
+    "estimation": "Estimat",
+    "invoiced": "Facturat",
+    "operator reading": "Citire distribuitor",
+    "consumption convention": "Convenție consum",
+    "advance agreement": "Acord avansat",
+}
+
+
 def normalizeaza_unitatea(bruta: Any) -> str | None:
     """Aduce unitatea la scrierea pe care o așteaptă Home Assistant."""
     if bruta is None:
@@ -128,17 +147,74 @@ def pentru_utilitate(elemente: list[dict], utilitate: str, utilitati: list[str])
     return rezultat
 
 
+# Stările de factură ale aplicației oficiale: `paid`, `unpaid`, `pastDue`
+# (restantă), `inProcessing`, `reversed` (anulată). Pe cele achitate, anulate
+# sau cu plata în curs nu mai e nimic de plată; o stare necunoscută e tratată,
+# ca în aplicație, drept neachitată și se judecă după sumă.
+STARI_FARA_DATORIE = frozenset({"paid", "reversed", "inprocessing"})
+STARE_RESTANTA = "pastdue"
+
+CHEI_VALOARE_FACTURA = ("amountTotal", "amount", "totalAmount")
+CHEI_DE_PLATA = ("amountToPay", "remainingAmount", "amountDue")
+CHEI_VALOARE_PLATA = ("paidValue", "totalAmount", "amount", "value")
+
+
+def _e_surplus_de_prosumator(factura: dict) -> bool:
+    """Factura de compensare a energiei injectate („Prosumer Surplus").
+
+    Are valoare negativă: e un credit al clientului, nu o sumă facturată.
+    """
+    return "prosum" in str(factura.get("balanceType") or "").casefold()
+
+
+def _rest_de_plata(factura: dict) -> float:
+    """Restul de plată al unei facturi, calculat ca în aplicația oficială.
+
+    De plată e `amountToPay` — sau, dacă lipsește, toată valoarea facturii —
+    plafonat la valoarea facturii. `amountTotal` vine ca text. Surplusul de
+    prosumator, cu valoare negativă, e un credit, nu o datorie.
+    """
+    total = ca_numar(prima_valoare(factura, *CHEI_VALOARE_FACTURA))
+    de_plata = ca_numar(prima_valoare(factura, *CHEI_DE_PLATA))
+    if de_plata is None:
+        de_plata = total
+    if de_plata is None or de_plata <= 0:
+        return 0.0
+    if total is not None and total < 0 and _e_surplus_de_prosumator(factura):
+        return 0.0
+    if total is not None and total > 0:
+        de_plata = min(de_plata, total)
+    return de_plata
+
+
 def _facturi_neachitate(facturi: list[dict]) -> list[dict]:
     neachitate: list[dict] = []
     for factura in facturi:
         if factura.get("paid") is True:
             continue
-        rest = ca_numar(
-            prima_valoare(factura, "remainingAmount", "amountDue", "amount", implicit=0)
-        )
-        if rest is not None and rest > 0:
+        if str(factura.get("status") or "").casefold() in STARI_FARA_DATORIE:
+            continue
+        if _rest_de_plata(factura) > 0:
             neachitate.append(factura)
     return neachitate
+
+
+def _cheie_unica(atribute: dict[str, Any], eticheta: str, detaliu: Any) -> str:
+    """O etichetă de atribut care nu suprascrie una existentă.
+
+    Două facturi emise în aceeași zi — de pildă furnizarea și surplusul de
+    prosumator — ar avea aceeași etichetă, iar a doua ar ascunde-o pe prima.
+    """
+    if eticheta not in atribute:
+        return eticheta
+    if detaliu:
+        candidat = f"{eticheta} ({detaliu})"
+        if candidat not in atribute:
+            return candidat
+    numar = 2
+    while f"{eticheta} ({numar})" in atribute:
+        numar += 1
+    return f"{eticheta} ({numar})"
 
 
 def _suma(elemente: list[dict], *chei: str) -> float:
@@ -178,29 +254,40 @@ class NovaSensorDescription(SensorEntityDescription):
 
 def _sold_total(date: dict, utilitate: str | None) -> Any:
     return ca_numar(
-        prima_valoare(date.get("balances"), "balance", "totalBalance", "total")
+        prima_valoare(date.get("balance"), "total", "balance", "totalBalance")
     )
 
 
 def _sold_prosumator(date: dict, utilitate: str | None) -> Any:
     return ca_numar(
-        prima_valoare(date.get("balances"), "prosumerBalance", "prosumBalance")
+        prima_valoare(date.get("balance"), "prosumer", "prosumerBalance")
     )
 
 
-def _are_contract_de_prosumator(date: dict, utilitate: str | None) -> bool:
-    """Contul are vreun contract de prosumator?
+def _este_prosumator(date: dict, utilitate: str | None) -> bool:
+    """Contul este de prosumator?
 
-    Soldul de prosumator vine ca `0` și pentru cine nu e prosumator, deci nu
-    poate fi folosit ca semnal. Semnalul adevărat e contractul de prosumator
-    completat pe contract.
+    Soldul de prosumator vine ca `0` și pentru cine nu e prosumator, deci zero
+    nu e un semnal. Semnalul e `isProsumer` din `/dashboard/balance` — nu cel
+    din `/invoices`, care a venit `false` pe un cont de prosumator. Un sold de
+    prosumator nenul sau un contract de prosumator (tipAct 6 sau 7) sunt la fel
+    de concludente.
     """
+    sold = date.get("balance")
+    if isinstance(sold, dict):
+        if sold.get("isProsumer") is True:
+            return True
+        if ca_numar(prima_valoare(sold, "prosumer", "prosumerBalance")):
+            return True
+
     contracte = (
         date.get("contracts", [])
         if utilitate is None
         else pentru_utilitate(date.get("contracts", []), utilitate, date.get("utilities", []))
     )
     for contract in contracte:
+        if _tip_act(contract) in TIPURI_ACT_PROSUMATOR:
+            return True
         for cheie in ("prosumerContract", "prosumerCertificate"):
             valoare = contract.get(cheie)
             if isinstance(valoare, str) and valoare.strip():
@@ -211,19 +298,26 @@ def _are_contract_de_prosumator(date: dict, utilitate: str | None) -> bool:
 def _facturi_cont(date: dict) -> list[dict]:
     """Toate facturile contului.
 
-    Facturile și plățile sunt tratate la nivel de cont, nu de utilitate. Pe
-    contul pe care am putut verifica, `/invoices` nu a returnat niciun exemplar,
-    deci nu știm dacă ele poartă `utilityType`. Dacă nu îl poartă, o filtrare pe
-    utilitate le-ar arunca pe toate de pe un cont cu gaz și electricitate — iar
-    „Factură restantă" ar raporta liniștit „Nu" în timp ce există datorie.
-    Totalurile pe cont sunt corecte în ambele cazuri; se pierde doar defalcarea.
+    Facturile și plățile sunt tratate la nivel de cont, nu de utilitate. Ele
+    poartă `utilityType`, dar o factură fără el, pe un cont cu gaz și
+    electricitate, ar fi aruncată de o filtrare pe utilitate — iar „Factură
+    restantă" ar raporta liniștit „Nu" în timp ce există datorie. Totalurile pe
+    cont sunt corecte oricum; se pierde doar defalcarea.
     """
     return date.get("invoices", [])
 
 
 def _plati_cont(date: dict) -> list[dict]:
-    """Toate plățile contului. Vezi raționamentul de la `_facturi_cont`."""
-    return date.get("payments", [])
+    """Plățile contului. Vezi raționamentul de la `_facturi_cont`.
+
+    Ca în aplicația oficială, înregistrările fără o sumă plătită pozitivă nu
+    sunt plăți și nu apar.
+    """
+    return [
+        plata
+        for plata in date.get("payments", [])
+        if (ca_numar(prima_valoare(plata, *CHEI_VALOARE_PLATA)) or 0) > 0
+    ]
 
 
 def _factura_restanta(date: dict, utilitate: str | None) -> str:
@@ -246,16 +340,23 @@ def _atribute_factura_restanta(date: dict, utilitate: str | None) -> dict[str, A
 
     return {
         "Total restant": format_ron(
-            _suma(neachitate, "remainingAmount", "amountDue", "amount")
+            round(sum(_rest_de_plata(factura) for factura in neachitate), 2)
         ),
         "Facturi neachitate": len(neachitate),
+        # Ca în aplicația oficială, „restantă" e doar starea `pastDue`.
+        "Cu scadența depășită": sum(
+            1
+            for factura in neachitate
+            if str(factura.get("status") or "").casefold() == STARE_RESTANTA
+        ),
         "Scadența ultimei facturi": (
             max(scadente).strftime("%d.%m.%Y") if scadente else VALOARE_NECUNOSCUTA
         ),
     }
 
 
-# Soldul vine o singură dată pentru tot contul: /balances nu are utilitate.
+# Soldul e al contului: /dashboard/balance îl defalcă și pe utilități, dar
+# senzorii folosesc totalul, ca aceeași sumă să nu apară de două ori.
 SENZORI_DE_CONT: tuple[NovaSensorDescription, ...] = (
     NovaSensorDescription(
         key="sold_total",
@@ -265,7 +366,7 @@ SENZORI_DE_CONT: tuple[NovaSensorDescription, ...] = (
         native_unit_of_measurement="RON",
         state_class=SensorStateClass.TOTAL,
         value_fn=_sold_total,
-        endpoint="balances",
+        endpoint="balance",
     ),
     NovaSensorDescription(
         key="sold_prosumator",
@@ -275,9 +376,9 @@ SENZORI_DE_CONT: tuple[NovaSensorDescription, ...] = (
         native_unit_of_measurement="RON",
         state_class=SensorStateClass.TOTAL,
         value_fn=_sold_prosumator,
-        endpoint="balances",
-        # Apare doar unde există contract de prosumator.
-        exists_fn=_are_contract_de_prosumator,
+        endpoint="balance",
+        # Apare doar pe conturile de prosumator.
+        exists_fn=_este_prosumator,
     ),
     NovaSensorDescription(
         key="factura_restanta",
@@ -422,10 +523,22 @@ class ArhivaFacturiSensor(NovaEntity):
         atribute: dict[str, Any] = {}
         for factura in facturi:
             data = format_date_ro(prima_valoare(factura, "issueDate", "date", "createdAt"))
-            suma = format_ron(prima_valoare(factura, "amount", "totalAmount"))
-            atribute[f"Emisă pe {data}"] = suma
+            suma = format_ron(prima_valoare(factura, *CHEI_VALOARE_FACTURA))
+            if _e_surplus_de_prosumator(factura):
+                suma = f"{suma} (surplus prosumator)"
+            numar = prima_valoare(factura, "invoiceId", "number")
+            atribute[_cheie_unica(atribute, f"Emisă pe {data}", numar)] = suma
+
+        # Surplusul de prosumator e un credit, nu o sumă facturată: adunat la
+        # rest, ar face „Total facturat" negativ.
+        surplus = [factura for factura in facturi if _e_surplus_de_prosumator(factura)]
+        furnizare = [factura for factura in facturi if not _e_surplus_de_prosumator(factura)]
         atribute["Total facturi"] = len(facturi)
-        atribute["Total facturat"] = format_ron(_suma(facturi, "amount", "totalAmount"))
+        atribute["Total facturat"] = format_ron(_suma(furnizare, *CHEI_VALOARE_FACTURA))
+        if surplus:
+            atribute["Total surplus prosumator"] = format_ron(
+                _suma(surplus, *CHEI_VALOARE_FACTURA)
+            )
         return atribute
 
 
@@ -456,12 +569,56 @@ class ArhivaPlatiSensor(NovaEntity):
         atribute: dict[str, Any] = {}
         for plata in plati:
             data = format_date_ro(prima_valoare(plata, "paymentDate", "date", "createdAt"))
-            atribute[f"Plătită pe {data}"] = format_ron(
-                prima_valoare(plata, "amount", "value")
+            facturi = prima_valoare(plata, "invoicesIds", "paymentId")
+            atribute[_cheie_unica(atribute, f"Plătită pe {data}", facturi)] = format_ron(
+                prima_valoare(plata, *CHEI_VALOARE_PLATA)
             )
         atribute["Total plăți"] = len(plati)
-        atribute["Total plătit"] = format_ron(_suma(plati, "amount", "value"))
+        atribute["Total plătit"] = format_ron(_suma(plati, *CHEI_VALOARE_PLATA))
         return atribute
+
+
+# Tipurile de act din aplicația oficială: contract (1), act adițional (3),
+# contract de prosumator (6), act adițional de prosumator (7). Fără tip, actul
+# e — tot ca în aplicație — contractul.
+TIP_ACT_CONTRACT = 1
+TIPURI_ACT_PROSUMATOR = frozenset({6, 7})
+
+# Ca în aplicația oficială, o stare lipsă sau goală înseamnă contract activ.
+STARI_CONTRACT_ACTIV = frozenset({"active", "activ", "valid", ""})
+
+
+def _tip_act(contract: dict) -> int:
+    tip = ca_numar(contract.get("tipAct"))
+    return int(tip) if tip is not None else TIP_ACT_CONTRACT
+
+
+def _contract_activ(contract: dict) -> bool:
+    stare = str(prima_valoare(contract, "status", "state", implicit="")).strip()
+    return stare.casefold() in STARI_CONTRACT_ACTIV
+
+
+def contractul_principal(contracte: list[dict]) -> dict | None:
+    """Contractul de furnizare al unei utilități, dintre toate actele ei.
+
+    `/contracts` întoarce toate actele, nu doar contractul: și actele
+    adiționale, și contractul de prosumator. Se alege contractul propriu-zis,
+    apoi cel activ, apoi cel intrat cel mai recent în vigoare. Fără niciun
+    contract propriu-zis, se arată cel mai potrivit dintre celelalte acte.
+    """
+    def rang(contract: dict) -> tuple:
+        in_vigoare = parse_api_date(
+            prima_valoare(contract, "inForceAt", "effectiveFrom", "startDate")
+        )
+        semnat = parse_api_date(prima_valoare(contract, "signedAt", "signDate"))
+        return (
+            _tip_act(contract) == TIP_ACT_CONTRACT,
+            _contract_activ(contract),
+            in_vigoare or datetime.min,
+            semnat or datetime.min,
+        )
+
+    return max(contracte, key=rang) if contracte else None
 
 
 class DateContractSensor(NovaEntity):
@@ -473,18 +630,20 @@ class DateContractSensor(NovaEntity):
         super().__init__(coordinator, utilitate, "date_contract", "Date contract")
 
     def _contract(self) -> dict | None:
-        contracte = pentru_utilitate(
-            self._date.get("contracts", []), self._utilitate, self._date.get("utilities", [])
+        return contractul_principal(
+            pentru_utilitate(
+                self._date.get("contracts", []),
+                self._utilitate,
+                self._date.get("utilities", []),
+            )
         )
-        return contracte[0] if contracte else None
 
     @property
     def native_value(self) -> str:
         contract = self._contract()
         if contract is None:
             return VALOARE_NECUNOSCUTA
-        stare = str(prima_valoare(contract, "status", "state", implicit="")).lower()
-        return "Activ" if stare in ("active", "activ", "valid") else "Inactiv"
+        return "Activ" if _contract_activ(contract) else "Inactiv"
 
     @property
     def available(self) -> bool:
@@ -512,8 +671,89 @@ class DateContractSensor(NovaEntity):
         }
 
 
+def _nenul(*valori: Any) -> float | None:
+    """Prima valoare numerică nenulă: API-ul pune 0 unde nu are un index."""
+    for valoare in valori:
+        numar = ca_numar(valoare)
+        if numar:
+            return numar
+    return None
+
+
+def _index_citire(citire: dict) -> float | None:
+    """Indexul nou al unei citiri.
+
+    Ca în aplicația oficială, 0 înseamnă „lipsă", iar atunci contează
+    `consumptionNewIndex`. Un 0 luat drept index ar fi văzut de Home Assistant
+    ca o resetare a contorului, iar următoarea citire ar apărea în statistici
+    ca un consum egal cu tot indexul.
+    """
+    return _nenul(
+        prima_valoare(citire, "newIndex", "index", "lastIndex"),
+        citire.get("consumptionNewIndex"),
+    )
+
+
+def _index_anterior(citire: dict) -> float | None:
+    return _nenul(citire.get("oldIndex"), citire.get("consumptionOldIndex"))
+
+
+def _primul_text(obiect: dict, *chei: str) -> str:
+    """Primul câmp text completat; API-ul trimite `""` pentru câmpurile goale."""
+    for cheie in chei:
+        valoare = obiect.get(cheie)
+        if valoare is not None and str(valoare).strip():
+            return str(valoare).strip()
+    return ""
+
+
+def _data_citirii(citire: dict) -> datetime | None:
+    return parse_api_date(
+        prima_valoare(citire, "periodEnd", "periodStart", "period", "readingDate")
+    )
+
+
+def cheie_contor(citire: dict) -> tuple[str, str]:
+    """Identitatea unui index în istoricul de citiri: (serie, cadran).
+
+    Seria e cheia naturală. Cadranul deosebește indexurile aceluiași contor —
+    la tarif dublu, ziua și noaptea. Cadranul principal (sau lipsa lui) se
+    reduce la `""`: altfel o citire cu „EA" și una fără cadran ale aceluiași
+    contor ar da două entități cu același `unique_id`.
+    """
+    serie = _primul_text(
+        citire, "meterSeries", "series", "meterCode", "meteringPointNo", "meteringPointCode"
+    )
+    cadran = _primul_text(citire, "dialCode", "dial")
+    if cadran.casefold() in CADRANE_PRINCIPALE:
+        cadran = ""
+    return (serie, cadran.upper())
+
+
+def ultimele_citiri(citiri: list[dict]) -> dict[tuple[str, str], dict]:
+    """Cea mai recentă citire a fiecărui index.
+
+    `/self-readings` e un istoric: același contor apare o dată pe perioadă.
+    Ordinea din răspuns nu e garantată, deci decide data perioadei; la aceeași
+    dată câștigă indexul mai mare, ca valoarea să nu depindă de ordine și să
+    nu scadă de la o actualizare la alta. Citirile fără index sunt ignorate, ca
+    o perioadă încă necompletată să nu ascundă indexul cunoscut.
+    """
+    ultimele: dict[tuple[str, str], tuple[tuple[datetime, float], dict]] = {}
+    for citire in citiri:
+        index = _index_citire(citire)
+        if index is None:
+            continue
+        cheie = cheie_contor(citire)
+        ordine = (_data_citirii(citire) or datetime.min, index)
+        existenta = ultimele.get(cheie)
+        if existenta is None or ordine >= existenta[0]:
+            ultimele[cheie] = (ordine, citire)
+    return {cheie: citire for cheie, (_, citire) in ultimele.items()}
+
+
 class IndexContorSensor(NovaEntity):
-    """Indexul unui contor, identificat prin serie."""
+    """Ultimul index cunoscut al unui contor, din istoricul de citiri."""
 
     _attr_icon = "mdi:counter"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
@@ -522,97 +762,65 @@ class IndexContorSensor(NovaEntity):
         self,
         coordinator: NovaCoordinator,
         utilitate: str,
-        punct: dict,
-        contor: dict,
-        indice_punct: int = 0,
-        indice_contor: int = 0,
+        cheie: tuple[str, str],
+        citire: dict,
     ) -> None:
-        serie = prima_valoare(contor, "series", "meterSeries")
-        self._serie = str(serie) if serie else ""
-        self._indice_punct = indice_punct
-        self._indice_contor = indice_contor
+        self._cheie_contor = cheie
+        serie, cadran = cheie
 
-        # Seria e cheia naturală. Dacă lipsește, poziția ține locul ei — altfel
-        # două contoare fără identificatori ar primi aceeași entitate și ar
-        # afișa amândouă datele primului.
-        sufix = slugify(self._serie) if self._serie else f"{indice_punct}_{indice_contor}"
-        nume = f"Index contor {self._serie}" if self._serie else "Index contor"
+        # Un contor cu cadranul principal păstrează identificatorul din
+        # versiunile anterioare, care conținea doar seria.
+        sufix = slugify(serie) if serie else "necunoscut"
+        nume = f"Index contor {serie}" if serie else "Index contor"
+        if cadran:
+            sufix = f"{sufix}_{slugify(cadran)}"
+            nume = f"{nume} ({cadran})"
 
         super().__init__(coordinator, utilitate, f"index_contor_{sufix}", nume)
 
-        self._id_punct = prima_valoare(punct, "meteringPointId", "id", "_id")
-        self._id_contor = prima_valoare(contor, "meterId", "id", "_id")
-        unitate = normalizeaza_unitatea(
-            prima_valoare(
-                contor,
-                "unit",
-                implicit=UNITATE_IMPLICITA.get(utilitate, UNITATE_ELECTRICITATE),
-            )
+        # O unitate lipsă sau goală înseamnă unitatea obișnuită a utilității;
+        # fără ea, senzorul ar pierde clasa și ar ieși din tabloul Energie.
+        unitate = normalizeaza_unitatea(citire.get("unit")) or UNITATE_IMPLICITA.get(
+            utilitate, UNITATE_ELECTRICITATE
         )
         self._attr_native_unit_of_measurement = unitate
         self._attr_device_class = CLASA_INDEX.get((utilitate, str(unitate)))
 
-    def _puncte(self) -> list[dict]:
-        return pentru_utilitate(
-            self._date.get("metering_points", []),
+    def _citire(self) -> dict | None:
+        """Ultima citire a acestui index, din datele proaspete."""
+        citiri = pentru_utilitate(
+            self._date.get("self_readings", []),
             self._utilitate,
             self._date.get("utilities", []),
         )
-
-    def _contor(self) -> dict | None:
-        """Regăsește contorul în datele proaspete.
-
-        Se încearcă, în ordine: identificatorii, seria, poziția. API-ul nu
-        garantează niciunul dintre ele, iar o potrivire greșită ar arăta indexul
-        altui contor.
-        """
-        puncte = self._puncte()
-
-        if self._id_punct is not None and self._id_contor is not None:
-            for punct in puncte:
-                if prima_valoare(punct, "meteringPointId", "id", "_id") != self._id_punct:
-                    continue
-                for contor in punct.get("meters") or []:
-                    if prima_valoare(contor, "meterId", "id", "_id") == self._id_contor:
-                        return contor
-
-        if self._serie:
-            for punct in puncte:
-                for contor in punct.get("meters") or []:
-                    serie = prima_valoare(contor, "series", "meterSeries")
-                    if serie is not None and str(serie) == self._serie:
-                        return contor
-            return None
-
-        if self._indice_punct < len(puncte):
-            contoare = puncte[self._indice_punct].get("meters") or []
-            if self._indice_contor < len(contoare):
-                return contoare[self._indice_contor]
-
-        return None
+        return ultimele_citiri(citiri).get(self._cheie_contor)
 
     @property
     def native_value(self) -> Any:
-        contor = self._contor()
-        if contor is None:
-            return None
-        return ca_numar(prima_valoare(contor, "lastIndex", "index", "value"))
+        citire = self._citire()
+        return None if citire is None else _index_citire(citire)
 
     @property
     def available(self) -> bool:
-        return super().available and self.native_value is not None
+        if not super().available or self._endpoint_a_esuat("self_readings"):
+            return False
+        return self.native_value is not None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        contor = self._contor()
-        if contor is None:
+        citire = self._citire()
+        if citire is None:
             return {}
+        tip = str(prima_valoare(citire, "newIndexReadingType", "readingType", implicit="")).strip()
         return {
-            "Serie contor": self._serie or VALOARE_NECUNOSCUTA,
+            "Serie contor": self._cheie_contor[0] or VALOARE_NECUNOSCUTA,
             "Ultima citire": format_date_ro(
-                prima_valoare(contor, "lastReadingDate", "readingDate")
+                prima_valoare(citire, "periodEnd", "period", "periodStart")
             ),
-            "Consum": format_number_ro(prima_valoare(contor, "consumption", "consum")),
+            # Un index estimat se deosebește astfel de unul citit efectiv.
+            "Tip citire": TIPURI_CITIRE.get(tip.casefold(), tip) if tip else "Autocitire",
+            "Index anterior": format_number_ro(_index_anterior(citire)),
+            "Consum": format_number_ro(prima_valoare(citire, "consumption", "consum")),
         }
 
 
@@ -641,14 +849,9 @@ def construieste_senzori(coordinator: NovaCoordinator) -> list[NovaEntity]:
 
         entitati.append(DateContractSensor(coordinator, utilitate))
 
-        puncte = pentru_utilitate(date.get("metering_points", []), utilitate, utilitati)
-        for indice_punct, punct in enumerate(puncte):
-            for indice_contor, contor in enumerate(punct.get("meters") or []):
-                entitati.append(
-                    IndexContorSensor(
-                        coordinator, utilitate, punct, contor, indice_punct, indice_contor
-                    )
-                )
+        citiri = pentru_utilitate(date.get("self_readings", []), utilitate, utilitati)
+        for cheie, citire in ultimele_citiri(citiri).items():
+            entitati.append(IndexContorSensor(coordinator, utilitate, cheie, citire))
 
     return entitati
 

@@ -1,9 +1,9 @@
-"""Paginarea: serverul răspunde cu 10 elemente pe pagină, implicit.
+"""Paginarea: `/contracts` răspunde cu 10 elemente pe pagină, implicit.
 
-Un cont facturat lunar depășește pragul în câteva luni. Trunchierea ar fi
-tăcută — pagina scurtă vine cu HTTP 200 — deci senzorii ar raporta încrezători
-valori greșite, iar o factură neachitată rămasă pe pagina 2 ar face
-„Factură restantă" să spună „Nu".
+E singura listă paginată a noului API — facturile, plățile și citirile vin
+întregi. Trunchierea ar fi tăcută — pagina scurtă vine cu HTTP 200 — deci un
+contract rămas pe pagina 2 ar face să dispară, fără nicio eroare, toți
+senzorii utilității lui.
 """
 
 import re
@@ -15,13 +15,13 @@ from aioresponses import CallbackResult, aioresponses
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.novaenergy.api import NovaApiClient
-from custom_components.novaenergy.const import DOMAIN, URL_INVOICES, URL_LOGIN
+from custom_components.novaenergy.const import DOMAIN, URL_CONTRACTS, URL_LOGIN
 
 from .conftest import BUCATI_URL, incarca
 
 # Clientul adaugă `limit` și `page` în adresă, deci potrivirea trebuie să
 # accepte orice șir de interogare.
-FACTURI_ORICE_PAGINA = re.compile(rf"^{re.escape(URL_INVOICES)}(\?.*)?$")
+CONTRACTE_ORICE_PAGINA = re.compile(rf"^{re.escape(URL_CONTRACTS)}(\?.*)?$")
 
 
 def _pagina(elemente: list[dict], pagina: int, per_pagina: int, total: int) -> dict:
@@ -48,105 +48,85 @@ async def sesiune():
 
 
 async def test_async_get_all_aduna_toate_paginile(sesiune):
-    facturi = [{"invoiceId": f"inv-{i}", "amount": 10} for i in range(25)]
+    contracte = [{"contractId": f"ctr-{i}", "status": "Activ"} for i in range(25)]
 
     async def raspunde(url, **argumente):
         params = dict(url.query)
         pagina = int(params.get("page", 1))
         per_pagina = int(params.get("limit", 10))
         start = (pagina - 1) * per_pagina
-        felie = facturi[start : start + per_pagina]
+        felie = contracte[start : start + per_pagina]
         return CallbackResult(
-            payload=_pagina(felie, pagina, per_pagina, len(facturi))
+            payload=_pagina(felie, pagina, per_pagina, len(contracte))
         )
 
     with aioresponses() as mock:
         mock.post(URL_LOGIN, payload={"data": {"session": {"token": "t"}}})
         for _ in range(5):
-            mock.get(FACTURI_ORICE_PAGINA, callback=raspunde)
+            mock.get(CONTRACTE_ORICE_PAGINA, callback=raspunde)
 
         client = NovaApiClient(sesiune, "a@b.ro", "parola")
-        toate = await client.async_get_all(URL_INVOICES)
+        toate = await client.async_get_all(URL_CONTRACTS)
 
-    assert len(toate) == 25, f"s-au citit doar {len(toate)} din 25 de facturi"
-    assert [f["invoiceId"] for f in toate] == [f"inv-{i}" for i in range(25)]
+    assert len(toate) == 25, f"s-au citit doar {len(toate)} din 25 de contracte"
+    assert [c["contractId"] for c in toate] == [f"ctr-{i}" for i in range(25)]
 
 
 async def test_async_get_all_se_opreste_la_o_singura_pagina(sesiune):
     with aioresponses() as mock:
         mock.post(URL_LOGIN, payload={"data": {"session": {"token": "t"}}})
-        mock.get(FACTURI_ORICE_PAGINA, payload=_pagina([{"invoiceId": "unu"}], 1, 100, 1))
+        mock.get(CONTRACTE_ORICE_PAGINA, payload=_pagina([{"contractId": "unu"}], 1, 100, 1))
 
         client = NovaApiClient(sesiune, "a@b.ro", "parola")
-        toate = await client.async_get_all(URL_INVOICES)
+        toate = await client.async_get_all(URL_CONTRACTS)
 
     assert len(toate) == 1
 
 
 async def test_async_get_all_tolereaza_raspuns_gol(sesiune):
-    """`/invoices` întoarce `{}` când nu există facturi."""
+    """Un endpoint fără date poate întoarce `{}`."""
     with aioresponses() as mock:
         mock.post(URL_LOGIN, payload={"data": {"session": {"token": "t"}}})
-        mock.get(FACTURI_ORICE_PAGINA, payload={})
+        mock.get(CONTRACTE_ORICE_PAGINA, payload={})
 
         client = NovaApiClient(sesiune, "a@b.ro", "parola")
-        assert await client.async_get_all(URL_INVOICES) == []
+        assert await client.async_get_all(URL_CONTRACTS) == []
 
 
-async def test_factura_neachitata_de_pe_pagina_a_doua_e_vazuta(hass, date_intrare, freezer):
-    """Cazul care doare: datoria e pe pagina 2, iar senzorul ar spune „Nu"."""
-    freezer.move_to("2026-09-18")
-
-    facturi = [
-        {
-            "invoiceId": f"inv-{i}",
-            "issueDate": f"{(i % 9) + 1:02d}.01.2026",
-            "dueDate": "15.04.2026",
-            "amount": 10,
-            "remainingAmount": 0,
-            "paid": True,
-            "utilityType": "gas",
-        }
-        for i in range(12)
+async def test_contractul_de_pe_pagina_a_doua_e_vazut(hass, date_intrare):
+    """Cazul care doare: contractul de gaz e pe pagina 2, iar fără paginare
+    toată utilitatea ar dispărea, fără nicio eroare."""
+    electricitate = [
+        {"contractId": f"ctr-{i}", "number": f"NV-{i}", "status": "Activ", "type": "Casnic",
+         "utilityType": "electricity", "signedAt": "01.06.2023", "inForceAt": "01.07.2023"}
+        for i in range(10)
     ]
-    # A treisprezecea, neachitată, ajunge pe pagina a doua la 10 pe pagină.
-    facturi.append(
-        {
-            "invoiceId": "inv-restanta",
-            "issueDate": "01.09.2026",
-            "dueDate": "15.10.2026",
-            "amount": 250,
-            "remainingAmount": 250,
-            "paid": False,
-            "utilityType": "gas",
-        }
-    )
+    # Al unsprezecelea, singurul de gaz, ajunge pe pagina a doua la 10 pe pagină.
+    contracte = [*electricitate, {
+        "contractId": "ctr-gaz", "number": "NV-GAZ", "status": "Activ", "type": "Casnic",
+        "utilityType": "gas", "signedAt": "01.06.2023", "inForceAt": "01.07.2023",
+    }]
 
     def _fabrica(session, email, password, timeout=30):
         client = AsyncMock()
-        client.contul = None
-
-        async def _switch(account_id):
-            client.contul = account_id
-            return {}
 
         async def _get(url, params=None):
             params = params or {}
             for bucata, nume in BUCATI_URL.items():
                 if bucata not in url:
                     continue
-                if nume == "invoices":
+                if nume == "contracts":
                     per_pagina = min(int(params.get("limit", 10)), 10)  # plafon server
                     pagina = int(params.get("page", 1))
                     start = (pagina - 1) * per_pagina
                     return _pagina(
-                        facturi[start : start + per_pagina],
+                        contracte[start : start + per_pagina],
                         pagina,
                         per_pagina,
-                        len(facturi),
+                        len(contracte),
                     )
                 try:
-                    return incarca(f"contA_{nume}")
+                    return incarca(f"contB_{nume}")
                 except FileNotFoundError:
                     return {}
             return {}
@@ -166,7 +146,7 @@ async def test_factura_neachitata_de_pe_pagina_a_doua_e_vazuta(hass, date_intrar
                 pagina = urmatoare
 
         client.async_login = AsyncMock(return_value=incarca("login_multicont"))
-        client.async_switch_account = AsyncMock(side_effect=_switch)
+        client.async_switch_account = AsyncMock(return_value={})
         client.async_get = AsyncMock(side_effect=_get)
         client.async_get_all = AsyncMock(side_effect=_get_all)
         return client
@@ -179,7 +159,6 @@ async def test_factura_neachitata_de_pe_pagina_a_doua_e_vazuta(hass, date_intrar
         await hass.config_entries.async_setup(intrare.entry_id)
         await hass.async_block_till_done()
 
-    restanta = hass.states.get("sensor.novaenergy_3047398_factura_restanta")
-    assert restanta.state == "Da", "factura de pe pagina a doua a fost pierdută"
-    assert restanta.attributes["Total restant"] == "250,00 lei"
-    assert int(hass.states.get("sensor.novaenergy_3047398_arhiva_facturi").state) == 13
+    gaz = hass.states.get("sensor.novaenergy_3047398_gaz_date_contract")
+    assert gaz is not None, "contractul de pe pagina a doua a fost pierdut"
+    assert gaz.attributes["Contract"] == "NV-GAZ"

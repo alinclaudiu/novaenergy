@@ -7,7 +7,7 @@ Ghidul acoperă instalarea, configurarea, exemple de carduri și verificarea că
 ## Cerințe preliminare
 
 - Home Assistant **2025.11** sau mai nou
-- Un cont activ pe platforma Nova Power & Gas („Vreau la Nova"), cu email și parolă
+- Un cont de client Nova Power & Gas („MyAccount", cel din aplicația web și din cea mobilă), cu email și parolă
 - Opțional: [HACS](https://hacs.xyz/), pentru instalare și actualizări mai ușoare
 
 ---
@@ -83,7 +83,7 @@ rm -rf temp
 | Câmp | Ce pui | Observații |
 |---|---|---|
 | **Email** | adresa contului Nova | aceeași cu cea de pe platforma web |
-| **Parolă** | parola contului | se salvează criptat de Home Assistant |
+| **Parolă** | parola contului | se salvează în stocarea internă Home Assistant |
 | **Interval actualizare** | secunde | implicit `21600` (6 ore); minim acceptat `300` |
 
 > Datele de facturare se schimbă de câteva ori pe lună. Un interval sub o oră nu aduce informație nouă, doar trafic inutil către serverele Nova.
@@ -103,7 +103,7 @@ Fiecare cont descoperit apare cu adresa și codul CRM. Bifează ce te intereseaz
 
 ### Pasul 4 — confirmă
 
-După confirmare apar device-urile, câte unul pentru fiecare cont × utilitate, cu senzorii dedesubt.
+După confirmare apar device-urile: unul pentru fiecare cont, cu soldul, facturile și plățile, și câte unul pentru fiecare utilitate a contului, cu contractul și contoarele.
 
 ---
 
@@ -120,11 +120,11 @@ Integrarea se reîncarcă automat. Entitățile existente își păstrează isto
 
 ## Referință rapidă — entity ID-uri
 
-Soldul aparține contului, restul aparțin utilității:
+Soldul, facturile și plățile aparțin contului; contractul și contoarele, utilității:
 
 ```
 sensor.novaenergy_3047398_sold_total
-sensor.novaenergy_3047398_sold_prosumator            # doar dacă ai contract de prosumator
+sensor.novaenergy_3047398_sold_prosumator            # doar dacă ești prosumator
 sensor.novaenergy_3047398_factura_restanta
 sensor.novaenergy_3047398_arhiva_facturi
 sensor.novaenergy_3047398_arhiva_plati
@@ -137,7 +137,7 @@ sensor.novaenergy_3047398_gaz_date_contract
 sensor.novaenergy_3047398_gaz_index_contor_gs1234567
 ```
 
-Pe electricitate, același tipar cu `electricitate` în loc de `gaz`.
+Pe electricitate, același tipar cu `electricitate` în loc de `gaz`. Un contor de energie cu tarif dublu are două indexuri, cu cadranul la final: `…_index_contor_{serie}_eaz` (zi) și `…_index_contor_{serie}_ean` (noapte).
 
 > Codurile CRM și seriile de contor de mai sus sunt exemple. Ale tale se văd în **Instrumente pentru dezvoltatori** → **Stări**, filtrând după `novaenergy`.
 
@@ -232,7 +232,7 @@ cards:
 
 ### Device-urile există
 
-**Setări** → **Dispozitive și Servicii** → **Nova Energy România** → **dispozitive**. Ar trebui să vezi câte un dispozitiv pentru fiecare cont × utilitate.
+**Setări** → **Dispozitive și Servicii** → **Nova Energy România** → **dispozitive**. Ar trebui să vezi un dispozitiv pentru fiecare cont și câte unul pentru fiecare utilitate a lui.
 
 ### Senzorii au valori
 
@@ -240,7 +240,7 @@ cards:
 
 ### Logurile sunt curate
 
-**Setări** → **Sistem** → **Jurnale**. La pornire ar trebui să apară o singură linie informativă:
+**Setări** → **Sistem** → **Jurnale**. Cu setările obișnuite, nu apare nicio eroare `novaenergy` — doar avertismentul standard al Home Assistant pentru orice integrare custom („We found a custom integration novaenergy which has not been tested…"). Cu depanarea activată (vezi [DEBUG.md](DEBUG.md)), la pornire apare și linia:
 
 ```
 Nova Energy pornită pentru 2 cont(uri): 3008726, 3047398
@@ -268,6 +268,6 @@ Dacă ceva nu e în regulă, continuă cu [DEBUG.md](DEBUG.md).
 
 ## Observații generale
 
-- Parola se păstrează criptat, în stocarea internă Home Assistant, și nu apare niciodată în loguri.
-- Raportul de diagnostic (butonul **Descarcă diagnostic** de pe pagina integrării) maschează adresa de email și nu conține parola sau tokenul — poate fi atașat în siguranță la un issue.
+- Parola se păstrează în stocarea internă Home Assistant (`.storage`), ca la orice integrare — necriptată, dar fără să iasă din instanța ta — și nu apare niciodată în loguri.
+- Raportul de diagnostic (butonul **Descarcă diagnostic** de pe pagina integrării) maschează adresa de email și nu conține parola sau tokenul. Conține numărul contului (codul CRM) și, în numele senzorilor de index, seria contorului: înlocuiește-le înainte de a-l atașa la un issue public, dacă nu vrei să fie vizibile.
 - Integrarea nu trimite date către niciun serviciu în afară de Nova.

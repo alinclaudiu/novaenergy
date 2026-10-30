@@ -1,12 +1,48 @@
 {
-  "docs": [],
-  "hasNextPage": false,
-  "hasPrevPage": false,
-  "limit": 10,
-  "nextPage": null,
-  "page": 1,
-  "pagingCounter": 1,
-  "prevPage": null,
-  "totalDocs": 0,
-  "totalPages": 1
+  "data": {
+    "enabled": true,
+    "intervalMessage": "",
+    "selfReadings": [
+      {
+        "constant": 1,
+        "consumption": 60,
+        "dialCode": "ZZGN",
+        "distributorName": "",
+        "meterCode": "COD-GS7654321",
+        "meterSeries": "GS7654321",
+        "meteringPointCode": "CLC123456",
+        "meteringPointNo": "LC-00000011",
+        "newIndex": 1200,
+        "newIndexReadingType": "Reading",
+        "oldIndex": 1140,
+        "oldIndexReadingType": "Invoiced",
+        "period": "02.03.2026",
+        "periodEnd": "2026-03-02",
+        "periodStart": "2026-03-02",
+        "readingType": "Reading",
+        "unit": "m³",
+        "utilityType": "gas"
+      },
+      {
+        "constant": 1,
+        "consumption": 310,
+        "dialCode": "EA",
+        "distributorName": "",
+        "meterCode": "COD-EL9999999",
+        "meterSeries": "EL9999999",
+        "meteringPointCode": "CLC123456",
+        "meteringPointNo": "LC-00000011",
+        "newIndex": 45210,
+        "newIndexReadingType": "Reading",
+        "oldIndex": 44900,
+        "oldIndexReadingType": "Invoiced",
+        "period": "02.03.2026",
+        "periodEnd": "2026-03-02",
+        "periodStart": "2026-03-02",
+        "readingType": "Reading",
+        "unit": "kWh",
+        "utilityType": "electricity"
+      }
+    ]
+  }
 }

@@ -20,24 +20,27 @@ CONF_SELECT_ALL = "select_all"
 # ──────────────────────────────────────────────
 # URL-uri API
 # ──────────────────────────────────────────────
-API_BASE = "https://backend.nova-energy.ro/api"
+# Backend-ul aplicației de client „MyAccount". Cel vechi,
+# `backend.nova-energy.ro/api`, răspunde 404 la toate rutele de când Nova a
+# trecut aplicația pe această platformă.
+API_BASE = "https://myaccount-admin.nova-energy.ro/api/v1"
 
-URL_LOGIN = f"{API_BASE}/accounts/login/client"
-URL_SWITCH = f"{API_BASE}/accounts/switch"
-URL_ME = f"{API_BASE}/accounts/me"
-URL_APP_INFO = f"{API_BASE}/globals/app-info/general"
-URL_METERING_POINTS = f"{API_BASE}/metering-points"
-URL_CONSUMPTION_AGREEMENTS = f"{API_BASE}/metering-points/{{point_id}}/consumption-agreements"
-URL_SELF_READINGS = f"{API_BASE}/self-readings"
-URL_INVOICES = f"{API_BASE}/invoices"
-URL_BALANCES = f"{API_BASE}/balances"
+URL_LOGIN = f"{API_BASE}/auth/login"
+URL_SWITCH = f"{API_BASE}/auth/switch-account"
+URL_BALANCE = f"{API_BASE}/dashboard/balance"
 URL_CONTRACTS = f"{API_BASE}/contracts"
+URL_METERING_POINTS = f"{API_BASE}/metering-points"
+URL_INVOICES = f"{API_BASE}/invoices"
 URL_PAYMENTS = f"{API_BASE}/payments"
+URL_SELF_READINGS = f"{API_BASE}/self-readings"
 
 HEADERS = {
     "Accept": "application/json",
     "Content-Type": "application/json",
 }
+
+# Antetul prin care aplicația oficială îi spune serverului ce cont vizualizează.
+ANTET_CONT_VIZUALIZAT = "X-Viewed-Account"
 
 # ──────────────────────────────────────────────
 # Utilități

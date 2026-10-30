@@ -8,21 +8,24 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import NovaApiClient, NovaApiError
+from .api import NovaApiClient, NovaApiError, NovaCredentialeRespinse
 from .const import (
     DOMAIN,
-    URL_APP_INFO,
-    URL_BALANCES,
+    URL_BALANCE,
     URL_CONTRACTS,
     URL_INVOICES,
     URL_METERING_POINTS,
     URL_PAYMENTS,
+    URL_SELF_READINGS,
     UTILITY_ELECTRICITY,
     UTILITY_GAS,
 )
@@ -30,28 +33,47 @@ from .helpers import desfa_invelis, extrage_lista, prima_valoare
 
 _LOGGER = logging.getLogger(__name__)
 
-# Fără aceste date integrarea nu are ce afișa: eșecul lor oprește actualizarea.
-ENDPOINTURI_ESENTIALE: dict[str, str] = {
-    "balances": URL_BALANCES,
-    "contracts": URL_CONTRACTS,
-    "metering_points": URL_METERING_POINTS,
+
+@dataclass(frozen=True)
+class Endpoint:
+    """Cum se cere un endpoint și unde îi stau datele în răspuns."""
+
+    url: str
+    # Lista e sub această cheie, în `data`; `None` înseamnă un singur obiect.
+    cheie_lista: str | None = None
+    # Paginat ca `{docs, hasNextPage, nextPage}` — se citesc toate paginile.
+    paginat: bool = False
+    # Fără aceste date integrarea nu are ce afișa: eșecul lor oprește
+    # actualizarea. Celelalte pot lipsi legitim (cont nou, fără facturi).
+    esential: bool = False
+
+    @property
+    def da_lista(self) -> bool:
+        """Răspunsul se reduce la o listă, nu la un obiect."""
+        return self.paginat or self.cheie_lista is not None
+
+
+ENDPOINTURI: dict[str, Endpoint] = {
+    "balance": Endpoint(URL_BALANCE, esential=True),
+    "contracts": Endpoint(URL_CONTRACTS, paginat=True, esential=True),
+    "metering_points": Endpoint(URL_METERING_POINTS, cheie_lista="meteringPoints"),
+    "invoices": Endpoint(URL_INVOICES, cheie_lista="invoices"),
+    "payments": Endpoint(URL_PAYMENTS, cheie_lista="payments"),
+    "self_readings": Endpoint(URL_SELF_READINGS, cheie_lista="selfReadings"),
 }
-
-# Acestea pot lipsi legitim (cont nou, fără plăți, fără facturi).
-ENDPOINTURI_OPTIONALE: dict[str, str] = {
-    "invoices": URL_INVOICES,
-    "payments": URL_PAYMENTS,
-    "app_info": URL_APP_INFO,
-}
-
-# Cheile care conțin liste, nu obiecte.
-CHEI_LISTA = frozenset({"contracts", "metering_points", "invoices", "payments"})
-
-# Soldul vine tot ca listă paginată, dar are întotdeauna un singur element;
-# se reduce la un obiect, ca senzorii să nu indexeze o listă.
-CHEI_DOC_UNIC = frozenset({"balances"})
 
 UTILITATI_CUNOSCUTE = (UTILITY_GAS, UTILITY_ELECTRICITY)
+
+
+def _normalizeaza(endpoint: Endpoint, raspuns: Any) -> Any:
+    """Aduce răspunsul la forma folosită de senzori: listă sau obiect."""
+    if endpoint.paginat:
+        # `async_get_all` a concatenat deja paginile.
+        return raspuns if isinstance(raspuns, list) else extrage_lista(raspuns)
+    if endpoint.cheie_lista:
+        return extrage_lista(raspuns, endpoint.cheie_lista)
+    continut = desfa_invelis(raspuns)
+    return continut if isinstance(continut, dict) else {}
 
 
 class NovaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -63,6 +85,7 @@ class NovaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         client: NovaApiClient,
         account: dict,
         update_interval: timedelta,
+        config_entry: ConfigEntry | None = None,
     ) -> None:
         self.client = client
         self.account = account
@@ -71,6 +94,7 @@ class NovaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name=f"{DOMAIN} {account.get('crm', '')}",
             update_interval=update_interval,
         )
@@ -97,24 +121,30 @@ class NovaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Aduce toate datele contului într-un singur val de cereri."""
         await self._asigura_contul_curent()
 
-        toate = {**ENDPOINTURI_ESENTIALE, **ENDPOINTURI_OPTIONALE}
-
         rezultate = await asyncio.gather(
             *(
-                self.client.async_get_all(url)
-                if nume in CHEI_LISTA or nume in CHEI_DOC_UNIC
-                else self.client.async_get(url)
-                for nume, url in toate.items()
+                self.client.async_get_all(endpoint.url)
+                if endpoint.paginat
+                else self.client.async_get(endpoint.url)
+                for endpoint in ENDPOINTURI.values()
             ),
             return_exceptions=True,
         )
 
+        # Parola respinsă nu se rezolvă reîncercând: Home Assistant trebuie să
+        # oprească actualizările și să ceară parola nouă.
+        for rezultat in rezultate:
+            if isinstance(rezultat, NovaCredentialeRespinse):
+                raise ConfigEntryAuthFailed(
+                    f"Nova a respins credențialele: {rezultat}"
+                ) from rezultat
+
         date: dict[str, Any] = {"account": self.account}
         esuate: set[str] = set()
 
-        for nume, rezultat in zip(toate, rezultate, strict=True):
+        for (nume, endpoint), rezultat in zip(ENDPOINTURI.items(), rezultate, strict=True):
             if isinstance(rezultat, Exception):
-                if nume in ENDPOINTURI_ESENTIALE:
+                if endpoint.esential:
                     raise UpdateFailed(
                         f"Nu s-au putut obține datele esențiale ({nume}) pentru contul "
                         f"{self.account_crm}: {rezultat}"
@@ -125,18 +155,11 @@ class NovaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self.account_crm,
                     rezultat,
                 )
-                date[nume] = [] if nume in CHEI_LISTA else {}
+                date[nume] = [] if endpoint.da_lista else {}
                 esuate.add(nume)
                 continue
 
-            if nume in CHEI_LISTA:
-                # `async_get_all` a concatenat deja paginile.
-                date[nume] = rezultat if isinstance(rezultat, list) else extrage_lista(rezultat)
-            elif nume in CHEI_DOC_UNIC:
-                documente = rezultat if isinstance(rezultat, list) else extrage_lista(rezultat)
-                date[nume] = documente[0] if documente else {}
-            else:
-                date[nume] = desfa_invelis(rezultat) or {}
+            date[nume] = _normalizeaza(endpoint, rezultat)
 
         # Senzorii trebuie să poată deosebi „nu există date" de „nu am reușit
         # să le aduc": altfel un endpoint căzut ar arăta ca un zero adevărat.
@@ -150,6 +173,10 @@ class NovaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
         try:
             await self.client.async_switch_account(self.account_id)
+        except NovaCredentialeRespinse as eroare:
+            raise ConfigEntryAuthFailed(
+                f"Nova a respins credențialele: {eroare}"
+            ) from eroare
         except NovaApiError as eroare:
             raise UpdateFailed(
                 f"Comutarea pe contul {self.account_crm} a eșuat: {eroare}"

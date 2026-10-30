@@ -1,12 +1,20 @@
 {
-  "docs": [],
-  "hasNextPage": false,
-  "hasPrevPage": false,
-  "limit": 10,
-  "nextPage": null,
-  "page": 1,
-  "pagingCounter": 1,
-  "prevPage": null,
-  "totalDocs": 0,
-  "totalPages": 1
+  "data": {
+    "payments": [
+      {
+        "bankReference": "000000000001",
+        "date": "2026-09-25",
+        "entryNo": "000001",
+        "invoiceValue": 12.34,
+        "invoicesIds": "NPE-000000002",
+        "meteringPointAddress": null,
+        "meteringPointCode": "EMO0000001",
+        "meteringPointNumber": "LC-00000001",
+        "paidValue": 12.34,
+        "paymentId": "plata-0001",
+        "totalAmount": "12.34",
+        "utilityType": "electricity"
+      }
+    ]
+  }
 }

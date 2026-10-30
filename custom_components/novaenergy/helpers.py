@@ -41,33 +41,40 @@ def prima_valoare(obiect: dict | None, *chei: str, implicit: Any = None) -> Any:
     return implicit
 
 
+# Cheile care pot însoți `data` într-un înveliș, fără să fie date de business.
+CHEI_INVELIS = frozenset({"data", "status", "success", "message", "code", "meta"})
+
+
 def desfa_invelis(raspuns: Any) -> Any:
     """Scoate conținutul din învelișul `{data, status, success}`.
 
-    Autentificarea și informațiile despre aplicație vin împachetate astfel;
-    endpoint-urile de listă răspund direct. Funcția tratează ambele cazuri.
+    Autentificarea vine ca `{data, status, success}`, unele rute ca
+    `{message, data}`, cele mai multe doar ca `{data}`; contractele răspund
+    direct, paginat. Funcția tratează toate cazurile.
     """
     if (
         isinstance(raspuns, dict)
         and "data" in raspuns
-        and ({"status", "success"} & set(raspuns) or len(raspuns) == 1)
+        and ({"status", "success"} & set(raspuns) or set(raspuns) <= CHEI_INVELIS)
     ):
         return raspuns["data"]
     return raspuns
 
 
-def extrage_lista(raspuns: Any) -> list[dict]:
+def extrage_lista(raspuns: Any, cheie: str | None = None) -> list[dict]:
     """Normalizează un răspuns de listă.
 
-    Backend-ul e Payload CMS, care întoarce `{"docs": [...]}`, dar unele
-    endpoint-uri pot întoarce direct o listă.
+    Contractele vin paginate, ca `{"docs": [...]}`; restul listelor vin sub o
+    cheie proprie din `data` (`{"data": {"invoices": [...]}}`), pe care o dă
+    `cheie`. Unele endpoint-uri pot întoarce direct o listă.
     """
     raspuns = desfa_invelis(raspuns)
     if isinstance(raspuns, list):
         return [element for element in raspuns if isinstance(element, dict)]
     if isinstance(raspuns, dict):
-        for cheie in ("docs", "items", "data", "results"):
-            valoare = raspuns.get(cheie)
+        proprie = (cheie,) if cheie else ()
+        for nume in (*proprie, "docs", "items", "data", "results"):
+            valoare = raspuns.get(nume)
             if isinstance(valoare, list):
                 return [element for element in valoare if isinstance(element, dict)]
     return []
@@ -138,7 +145,7 @@ def parse_api_date(brut: Any) -> datetime | None:
     """Interpretează o dată venită de la API, indiferent de format.
 
     Rezultatul e întotdeauna **fără fus orar**. API-ul amestecă formatele — unele
-    câmpuri vin ca `28.08.2026`, altele ca `2026-08-28T00:00:00.000Z` — iar un
+    câmpuri vin ca `12.06.2026`, altele ca `2026-06-12T00:00:00.000Z` — iar un
     amestec de date cu și fără fus orar face `max()` să arunce `TypeError`, ceea
     ce ar scoate din funcțiune senzorul care le compară.
     """

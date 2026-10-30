@@ -1,8 +1,8 @@
 """Fixturi sintetice, în forma REALĂ a API-ului Nova (confirmată prin explorare).
 
-Contul folosit la explorare are un singur contract și nicio factură, așa că aceste
-date inventate acoperă restul: mai multe conturi, gaz, contoare, facturi, plăți
-și un contract de prosumator. Vezi tests/fixtures/README.md."""
+Contul folosit la explorare are o singură utilitate (electricitate, prosumator),
+așa că aceste date inventate acoperă restul: mai multe conturi, gaz, facturi
+neachitate, mai multe contoare și istoric de citiri. Vezi tests/fixtures/README.md."""
 import json, sys
 from pathlib import Path
 RAD = Path(__file__).parent.parent
@@ -10,10 +10,49 @@ sys.path.insert(0, str(RAD))
 FIX = RAD / "tests" / "fixtures"
 
 def paginat(docs):
-    """Învelișul de paginare folosit de toate endpoint-urile de listă."""
-    return {"docs": docs, "hasNextPage": False, "hasPrevPage": False, "limit": 10,
+    """Învelișul de paginare al contractelor, singura listă paginată."""
+    return {"docs": docs, "hasNextPage": False, "hasPrevPage": False, "limit": 100,
             "nextPage": None, "page": 1, "pagingCounter": 1, "prevPage": None,
             "totalDocs": 0, "totalPages": 1}
+
+def in_data(**campuri):
+    """Învelișul `{data: {...}}` al celorlalte endpoint-uri."""
+    return {"data": campuri}
+
+def sold(total=0, gaz=0, electricitate=0, prosumator=0, este_prosumator=False, de_plata=0):
+    return in_data(total=total, electricity=electricitate, gas=gaz, prosumer=prosumator,
+                   prosumerDue=0, processingPayments=0, hasProcessingPayment=False,
+                   pendingInvoicesCount=de_plata, perMeteringPoint={},
+                   isProsumer=este_prosumator)
+
+def contract(id_, numar, utilitate, semnat, in_vigoare):
+    return {"contractId": id_, "number": numar, "status": "Activ", "type": "Casnic",
+            "tipAct": 1, "utilityType": utilitate, "signedAt": semnat,
+            "inForceAt": in_vigoare, "invoiceDeliveryType": "Doar electronic"}
+
+def punct(id_, numar, cod, contract_id, utilitate, adresa):
+    return {"meteringPointId": id_, "number": numar, "specificIdForUtilityType": cod,
+            "address": adresa, "contractId": contract_id, "contractType": "individual",
+            "utilityType": utilitate, "gasRevisions": None}
+
+def factura(id_, emisa, scadenta, total, de_plata, stare, utilitate, tip="Supply"):
+    return {"invoiceId": id_, "utilityType": utilitate, "balanceType": tip,
+            "amountToPay": de_plata, "amountTotal": f"{total:.2f}",
+            "amountRemaining": de_plata, "dueDate": scadenta, "issueDate": emisa,
+            "status": stare, "pdfInvoiceStatus": True,
+            "meteringPointAddress": "Strada Florilor 15, Iași",
+            "meteringPointNumber": "LC-00000011", "meteringPointCode": "CLC123456",
+            "meteringPoints": [{"utilityType": utilitate, "address": "Strada Florilor 15, Iași",
+                                "amountTotal": total, "amountToPay": de_plata}]}
+
+def citire(serie, perioada, vechi, nou, unitate, utilitate, cadran):
+    zi, luna, an = perioada.split(".")
+    return {"period": perioada, "periodStart": f"{an}-{luna}-{zi}", "periodEnd": f"{an}-{luna}-{zi}",
+            "oldIndex": vechi, "newIndex": nou, "consumption": round(nou - vechi, 3),
+            "unit": unitate, "meteringPointNo": "LC-00000011", "meteringPointCode": "CLC123456",
+            "meterSeries": serie, "meterCode": f"COD-{serie}", "readingType": "Reading",
+            "oldIndexReadingType": "Invoiced", "newIndexReadingType": "Reading",
+            "distributorName": "", "constant": 1, "utilityType": utilitate, "dialCode": cadran}
 
 cont_a = {"accountId": "id-cont-a", "accountNumber": "3047398", "accountName": "POPESCU ION",
           "address": "Strada Florilor 15, Iași", "email": "ion@exemplu.ro",
@@ -34,71 +73,60 @@ date = {
       "viewedAccount": cont_a,
     }, "status": 200, "success": True},
 
-  # Cont A: gaz, cu contor, facturi și plăți.
-  "contA_balances": paginat([{"balance": 223.70, "prosumerBalance": 0}]),
+  # Cont A: gaz, cu două facturi de plată (una restantă), o plată și istoric de citiri.
+  "contA_balance": sold(total=223.70, gaz=223.70, de_plata=2),
   "contA_contracts": paginat([
-    {"contractId": "ctr-a1", "number": "NV-12345", "status": "Activ", "type": "Casnic",
-     "tipAct": 1, "utilityType": "gas", "signedAt": "15.01.2024", "inForceAt": "01.02.2024",
-     "invoiceDeliveryType": "Doar electronic", "prosumerCertificate": "", "prosumerContract": ""},
+    contract("ctr-a1", "NV-12345", "gas", "15.01.2024", "01.02.2024"),
   ]),
-  "contA_metering_points": paginat([
-    {"meteringPointId": "mp-a1", "number": "POD0001", "address": "Strada Florilor 15, Iași",
-     "contractId": "ctr-a1", "contractType": "individual", "utilityType": "gas",
-     "specificIdForUtilityType": "CLC123456",
-     "meters": [{"meterId": "mt-a1", "series": "GS1234567", "lastIndex": 6030,
-                 "lastReadingDate": "01.03.2026", "consumption": 145, "unit": "m³"}]},
+  "contA_metering_points": in_data(meteringPoints=[
+    punct("mp-a1", "LC-00000011", "CLC123456", "ctr-a1", "gas", "Strada Florilor 15, Iași"),
   ]),
-  "contA_invoices": paginat([
-    {"invoiceId": "inv-1", "number": "NV-0001", "issueDate": "04.03.2026",
-     "dueDate": "15.04.2026", "amount": 125.50, "remainingAmount": 125.50,
-     "paid": False, "utilityType": "gas"},
-    {"invoiceId": "inv-2", "number": "NV-0002", "issueDate": "15.02.2026",
-     "dueDate": "15.03.2026", "amount": 98.20, "remainingAmount": 98.20,
-     "paid": False, "utilityType": "gas"},
-    {"invoiceId": "inv-3", "number": "NV-0003", "issueDate": "10.12.2025",
-     "dueDate": "10.01.2026", "amount": 310.00, "remainingAmount": 0,
-     "paid": True, "utilityType": "gas"},
+  "contA_invoices": in_data(
+    invoices=[
+      factura("inv-1", "04.03.2026", "15.04.2026", 125.50, 125.50, "unpaid", "gas"),
+      factura("inv-2", "15.02.2026", "15.03.2026", 98.20, 98.20, "pastDue", "gas"),
+      factura("inv-3", "10.12.2025", "10.01.2026", 310.00, 0, "paid", "gas"),
+    ],
+    balance={"total": 223.70, "processingPayments": 0, "prosumer": 0, "prosumerDue": 0,
+             "isProsumer": False},
+    shouldPayAllBtnBeDisabled=False, clePayableDocuments=[]),
+  "contA_payments": in_data(payments=[
+    {"paymentId": "pay-1", "entryNo": "100001", "date": "2026-03-10", "totalAmount": "125.50",
+     "invoicesIds": "inv-0", "utilityType": "gas", "meteringPointAddress": None,
+     "meteringPointCode": "CLC123456", "meteringPointNumber": "LC-00000011",
+     "invoiceValue": 125.50, "paidValue": 125.50, "bankReference": "000000000002"},
   ]),
-  "contA_payments": paginat([
-    {"paymentId": "pay-1", "paymentDate": "10.03.2026", "amount": 125.50, "utilityType": "gas"},
-  ]),
-  "contA_self_readings": paginat([]),
-  "contA_app_info": {"data": {"selfReadingsEnabled": True, "name": "Nova",
-                              "selfReadingIntervalMessage": "Trimite indexul între 1 și 10",
-                              "announcements": []}},
+  # Cea mai nouă citire e prima: ordinea din răspuns nu e cronologică.
+  "contA_self_readings": in_data(
+    enabled=True, intervalMessage="Puteți trimite consumul doar în intervalul calendaristic 19-26",
+    selfReadings=[
+      citire("GS1234567", "01.03.2026", 5885, 6030, "m³", "gas", "ZZGN"),
+      citire("GS1234567", "01.02.2026", 5765, 5885, "m³", "gas", "ZZGN"),
+    ]),
 
   # Cont B: gaz + electricitate, prosumator, ca să acopere ambele ramuri.
-  "contB_balances": paginat([{"balance": 0, "prosumerBalance": 45.30}]),
+  "contB_balance": sold(prosumator=45.30, este_prosumator=True),
   "contB_contracts": paginat([
-    {"contractId": "ctr-b1", "number": "NV-22222", "status": "Activ", "type": "Casnic",
-     "tipAct": 1, "utilityType": "gas", "signedAt": "01.06.2023", "inForceAt": "01.07.2023",
-     "invoiceDeliveryType": "Doar electronic", "prosumerCertificate": "", "prosumerContract": ""},
-    {"contractId": "ctr-b2", "number": "NV-33333", "status": "Activ", "type": "Casnic",
-     "tipAct": 1, "utilityType": "electricity", "signedAt": "01.06.2023", "inForceAt": "01.07.2023",
-     "invoiceDeliveryType": "Doar electronic",
-     "prosumerCertificate": "CERT-999", "prosumerContract": "PROS-999"},
+    contract("ctr-b1", "NV-22222", "gas", "01.06.2023", "01.07.2023"),
+    contract("ctr-b2", "NV-33333", "electricity", "01.06.2023", "01.07.2023"),
   ]),
-  "contB_metering_points": paginat([
-    {"meteringPointId": "mp-b1", "number": "POD0002", "address": "Bd. Independenței 42",
-     "contractId": "ctr-b1", "contractType": "individual", "utilityType": "gas",
-     "specificIdForUtilityType": "CLC222",
-     "meters": [{"meterId": "mt-b1", "series": "GS7654321", "lastIndex": 1200,
-                 "lastReadingDate": "02.03.2026", "consumption": 60, "unit": "m³"}]},
-    {"meteringPointId": "mp-b2", "number": "POD0003", "address": "Bd. Independenței 42",
-     "contractId": "ctr-b2", "contractType": "individual", "utilityType": "electricity",
-     "specificIdForUtilityType": "POD333",
-     "meters": [{"meterId": "mt-b2", "series": "EL9999999", "lastIndex": 45210,
-                 "lastReadingDate": "02.03.2026", "consumption": 310, "unit": "kWh"}]},
+  "contB_metering_points": in_data(meteringPoints=[
+    punct("mp-b1", "LC-00000022", "CLC222", "ctr-b1", "gas", "Bd. Independenței 42"),
+    punct("mp-b2", "LC-00000033", "EMO333", "ctr-b2", "electricity", "Bd. Independenței 42"),
   ]),
-  "contB_invoices": paginat([]),
-  "contB_payments": paginat([]),
-  "contB_self_readings": paginat([]),
-  "contB_app_info": {"data": {"selfReadingsEnabled": True, "name": "Nova",
-                              "selfReadingIntervalMessage": "", "announcements": []}},
+  "contB_invoices": in_data(invoices=[], balance={}, shouldPayAllBtnBeDisabled=True,
+                            clePayableDocuments=[]),
+  "contB_payments": in_data(payments=[]),
+  "contB_self_readings": in_data(
+    enabled=True, intervalMessage="",
+    selfReadings=[
+      citire("GS7654321", "02.03.2026", 1140, 1200, "m³", "gas", "ZZGN"),
+      citire("EL9999999", "02.03.2026", 44900, 45210, "kWh", "electricity", "EA"),
+    ]),
 }
 
 for nume, continut in date.items():
     (FIX / f"{nume}.json").write_text(
-        json.dumps(continut, ensure_ascii=False, indent=2, sort_keys=True),
+        json.dumps(continut, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8")
 print(f"{len(date)} fixturi sintetice scrise")

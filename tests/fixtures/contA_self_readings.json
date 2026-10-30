@@ -1,12 +1,48 @@
 {
-  "docs": [],
-  "hasNextPage": false,
-  "hasPrevPage": false,
-  "limit": 10,
-  "nextPage": null,
-  "page": 1,
-  "pagingCounter": 1,
-  "prevPage": null,
-  "totalDocs": 0,
-  "totalPages": 1
+  "data": {
+    "enabled": true,
+    "intervalMessage": "Puteți trimite consumul doar în intervalul calendaristic 19-26",
+    "selfReadings": [
+      {
+        "constant": 1,
+        "consumption": 145,
+        "dialCode": "ZZGN",
+        "distributorName": "",
+        "meterCode": "COD-GS1234567",
+        "meterSeries": "GS1234567",
+        "meteringPointCode": "CLC123456",
+        "meteringPointNo": "LC-00000011",
+        "newIndex": 6030,
+        "newIndexReadingType": "Reading",
+        "oldIndex": 5885,
+        "oldIndexReadingType": "Invoiced",
+        "period": "01.03.2026",
+        "periodEnd": "2026-03-01",
+        "periodStart": "2026-03-01",
+        "readingType": "Reading",
+        "unit": "m³",
+        "utilityType": "gas"
+      },
+      {
+        "constant": 1,
+        "consumption": 120,
+        "dialCode": "ZZGN",
+        "distributorName": "",
+        "meterCode": "COD-GS1234567",
+        "meterSeries": "GS1234567",
+        "meteringPointCode": "CLC123456",
+        "meteringPointNo": "LC-00000011",
+        "newIndex": 5885,
+        "newIndexReadingType": "Reading",
+        "oldIndex": 5765,
+        "oldIndexReadingType": "Invoiced",
+        "period": "01.02.2026",
+        "periodEnd": "2026-02-01",
+        "periodStart": "2026-02-01",
+        "readingType": "Reading",
+        "unit": "m³",
+        "utilityType": "gas"
+      }
+    ]
+  }
 }

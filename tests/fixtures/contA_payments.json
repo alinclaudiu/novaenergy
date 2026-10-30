@@ -1,19 +1,20 @@
 {
-  "docs": [
-    {
-      "amount": 125.5,
-      "paymentDate": "10.03.2026",
-      "paymentId": "pay-1",
-      "utilityType": "gas"
-    }
-  ],
-  "hasNextPage": false,
-  "hasPrevPage": false,
-  "limit": 10,
-  "nextPage": null,
-  "page": 1,
-  "pagingCounter": 1,
-  "prevPage": null,
-  "totalDocs": 0,
-  "totalPages": 1
+  "data": {
+    "payments": [
+      {
+        "bankReference": "000000000002",
+        "date": "2026-03-10",
+        "entryNo": "100001",
+        "invoiceValue": 125.5,
+        "invoicesIds": "inv-0",
+        "meteringPointAddress": null,
+        "meteringPointCode": "CLC123456",
+        "meteringPointNumber": "LC-00000011",
+        "paidValue": 125.5,
+        "paymentId": "pay-1",
+        "totalAmount": "125.50",
+        "utilityType": "gas"
+      }
+    ]
+  }
 }

@@ -1,12 +1,28 @@
 {
-  "docs": [],
-  "hasNextPage": false,
-  "hasPrevPage": false,
-  "limit": 10,
-  "nextPage": null,
-  "page": 1,
-  "pagingCounter": 1,
-  "prevPage": null,
-  "totalDocs": 0,
-  "totalPages": 1
+  "data": {
+    "enabled": false,
+    "intervalMessage": "Puteți trimite consumul doar în intervalul calendaristic 19-26",
+    "selfReadings": [
+      {
+        "constant": 1,
+        "consumption": 4321.5,
+        "dialCode": "EA",
+        "distributorName": "",
+        "meterCode": "CTFZ-0000001",
+        "meterSeries": "1234567890000001",
+        "meteringPointCode": "EMO0000001",
+        "meteringPointNo": "LC-00000001",
+        "newIndex": 4321.5,
+        "newIndexReadingType": "Reading",
+        "oldIndex": 0,
+        "oldIndexReadingType": "Invoiced",
+        "period": "31.08.2026",
+        "periodEnd": "2026-08-31",
+        "periodStart": "2026-08-31",
+        "readingType": "Reading",
+        "unit": "kWh",
+        "utilityType": "electricity"
+      }
+    ]
+  }
 }

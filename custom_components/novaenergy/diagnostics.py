@@ -9,8 +9,9 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_USERNAME
+from homeassistant.const import CONF_USERNAME, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .const import CONF_ACCOUNTS, CONF_UPDATE_INTERVAL, DOMAIN
 from .helpers import mask_email
@@ -33,15 +34,24 @@ async def async_get_config_entry_diagnostics(
                 "numar_plati": len(date.get("payments", [])),
                 "numar_contracte": len(date.get("contracts", [])),
                 "numar_puncte_masurare": len(date.get("metering_points", [])),
+                "numar_citiri_index": len(date.get("self_readings", [])),
                 # Ce nu s-a putut aduce explică de ce lipsesc unii senzori.
                 "endpointuri_esuate": sorted(date.get("endpointuri_esuate", [])),
             }
 
+    # Doar senzorii acestei intrări: cu două conturi Nova configurate, raportul
+    # unuia nu are voie să conțină identificatorii celuilalt.
     senzori = sorted(
-        stare.entity_id
-        for stare in hass.states.async_all("sensor")
-        if stare.entity_id.startswith(f"sensor.{DOMAIN}_")
+        intrare.entity_id
+        for intrare in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+        if intrare.domain == "sensor"
     )
+    activi = [
+        entitate
+        for entitate in senzori
+        if (stare := hass.states.get(entitate)) is not None
+        and stare.state != STATE_UNAVAILABLE
+    ]
 
     return {
         "intrare": {
@@ -58,7 +68,7 @@ async def async_get_config_entry_diagnostics(
         },
         "conturi": conturi,
         "stare": {
-            "senzori_activi": len(senzori),
+            "senzori_activi": len(activi),
             "lista_senzori": senzori,
         },
     }

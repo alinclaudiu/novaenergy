@@ -1,23 +1,16 @@
 {
-  "docs": [
-    {
-      "address": "Strada Exemplu 10, Iași",
-      "contractId": "contract-0001",
-      "contractType": "individual",
-      "meteringPointId": "punct-0001",
-      "meters": [],
-      "number": "NV-100001",
-      "specificIdForUtilityType": "POD100001",
-      "utilityType": "electricity"
-    }
-  ],
-  "hasNextPage": false,
-  "hasPrevPage": false,
-  "limit": 10,
-  "nextPage": null,
-  "page": 1,
-  "pagingCounter": 1,
-  "prevPage": null,
-  "totalDocs": 0,
-  "totalPages": 1
+  "data": {
+    "meteringPoints": [
+      {
+        "address": "Strada Exemplu 10, Iași",
+        "contractId": "contract-0002",
+        "contractType": "individual",
+        "gasRevisions": null,
+        "meteringPointId": "punct-0001",
+        "number": "LC-00000001",
+        "specificIdForUtilityType": "EMO0000001",
+        "utilityType": "electricity"
+      }
+    ]
+  }
 }

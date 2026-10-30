@@ -1,0 +1,14 @@
+{
+  "data": {
+    "electricity": 0,
+    "gas": 0,
+    "hasProcessingPayment": false,
+    "isProsumer": true,
+    "pendingInvoicesCount": 0,
+    "perMeteringPoint": {},
+    "processingPayments": 0,
+    "prosumer": 120.45,
+    "prosumerDue": 0,
+    "total": 0
+  }
+}

@@ -1,32 +1,16 @@
 {
-  "docs": [
-    {
-      "address": "Strada Florilor 15, Iași",
-      "contractId": "ctr-a1",
-      "contractType": "individual",
-      "meteringPointId": "mp-a1",
-      "meters": [
-        {
-          "consumption": 145,
-          "lastIndex": 6030,
-          "lastReadingDate": "01.03.2026",
-          "meterId": "mt-a1",
-          "series": "GS1234567",
-          "unit": "m³"
-        }
-      ],
-      "number": "POD0001",
-      "specificIdForUtilityType": "CLC123456",
-      "utilityType": "gas"
-    }
-  ],
-  "hasNextPage": false,
-  "hasPrevPage": false,
-  "limit": 10,
-  "nextPage": null,
-  "page": 1,
-  "pagingCounter": 1,
-  "prevPage": null,
-  "totalDocs": 0,
-  "totalPages": 1
+  "data": {
+    "meteringPoints": [
+      {
+        "address": "Strada Florilor 15, Iași",
+        "contractId": "ctr-a1",
+        "contractType": "individual",
+        "gasRevisions": null,
+        "meteringPointId": "mp-a1",
+        "number": "LC-00000011",
+        "specificIdForUtilityType": "CLC123456",
+        "utilityType": "gas"
+      }
+    ]
+  }
 }

@@ -1,23 +1,31 @@
 {
   "data": {
     "loggedInAccount": {
-      "accountId": "cont-0001",
+      "accountId": "00000000-0000-4000-8000-000000000001",
       "accountName": "POPESCU ION",
       "accountNumber": "9100123456",
       "associatedAccounts": null
     },
+    "preferences": {
+      "language": "ro",
+      "theme": "system"
+    },
     "session": {
+      "canImpersonate": false,
       "expireAt": 1792308724,
       "role": "client",
       "token": "REDACTAT",
       "username": "utilizator@exemplu.test"
     },
     "viewedAccount": {
-      "accountId": "cont-0001",
+      "accountId": "00000000-0000-4000-8000-000000000001",
       "accountName": "POPESCU ION",
       "accountNumber": "9100123456",
       "address": "Strada Exemplu 10, Iași",
-      "email": "utilizator@exemplu.test",
+      "contactName": "POPESCU ION",
+      "email": "UTILIZATOR@EXEMPLU.TEST",
+      "isMainAccount": true,
+      "parentAccountId": null,
       "phone": "0700000000",
       "role": "client"
     }

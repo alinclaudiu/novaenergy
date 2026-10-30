@@ -105,3 +105,24 @@ async def test_raporteaza_endpointurile_esuate(hass, date_intrare):
     assert raport["conturi"][CRM_A]["endpointuri_esuate"] == ["payments"]
     # Raportul trebuie să rămână serializabil ca JSON.
     json.dumps(raport, ensure_ascii=False, default=str)
+
+
+async def test_raportul_contine_doar_senzorii_intrarii_sale(hass, date_intrare):
+    """Cu două conturi Nova configurate, raportul unuia nu are voie să conțină
+    identificatorii celuilalt."""
+    from homeassistant.helpers import entity_registry as er
+
+    intrare = await _intrare_configurata(hass, date_intrare)
+    alta = MockConfigEntry(domain=DOMAIN, data={**date_intrare, "username": "alt@exemplu.ro"},
+                           unique_id="alt@exemplu.ro")
+    alta.add_to_hass(hass)
+    straina = er.async_get(hass).async_get_or_create(
+        "sensor", DOMAIN, "novaenergy_7777777_sold_total",
+        suggested_object_id="novaenergy_7777777_sold_total", config_entry=alta,
+    )
+    hass.states.async_set(straina.entity_id, "0")
+
+    raport = await async_get_config_entry_diagnostics(hass, intrare)
+    assert straina.entity_id not in raport["stare"]["lista_senzori"]
+    assert "7777777" not in json.dumps(raport, ensure_ascii=False, default=str)
+    assert raport["stare"]["senzori_activi"] == len(raport["stare"]["lista_senzori"])

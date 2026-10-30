@@ -28,9 +28,9 @@ Dacă ai conturi de autentificare complet separate, adaugă integrarea de mai mu
 
 ---
 
-## De ce am două dispozitive pentru același cont?
+## De ce am mai multe dispozitive pentru același cont?
 
-Pentru că ai și gaz, și energie electrică pe acel cont. Fiecare utilitate are contract propriu, contor propriu și facturi proprii, așa că primește un dispozitiv separat: `Nova Energy (3047398) Gaz` și `Nova Energy (3047398) Energie Electrică`.
+Pentru că integrarea creează un dispozitiv pentru cont — cu soldul, facturile și plățile — și câte unul pentru fiecare utilitate, cu contractul și contoarele ei. Un cont doar cu energie electrică are deci două dispozitive, `Nova Energy (3047398)` și `Nova Energy (3047398) Energie Electrică`; unul cu gaz și energie electrică are trei.
 
 ---
 
@@ -52,13 +52,19 @@ Integrarea preferă intenționat `unavailable` în locul lui `0`: un zero fals a
 
 ## De ce nu am senzorul de sold prosumator?
 
-Pentru că acel cont nu are sold de prosumator. Senzorul se creează doar acolo unde API-ul întoarce efectiv valoarea — nu are rost o entitate care arată permanent „nimic".
+Pentru că Nova nu raportează contul ca fiind de prosumator. Senzorul se creează doar pe conturile marcate ca prosumator de platformă (sau care au deja un sold de prosumator) — nu are rost o entitate care arată permanent „nimic".
 
 ---
 
 ## Am schimbat contorul. Ce se întâmplă?
 
-Senzorii de index sunt identificați prin seria contorului, deci apare o entitate nouă pentru contorul nou. Cea veche rămâne, cu istoricul ei, și devine indisponibilă. O poți șterge din interfață când nu-ți mai trebuie.
+Senzorii de index sunt identificați prin seria contorului, deci apare o entitate nouă pentru contorul nou, de la prima citire a lui. Cea veche rămâne, cu istoricul ei, și păstrează ultimul index cunoscut cât timp citirea ei mai apare în istoricul Nova. O poți șterge din interfață când nu-ți mai trebuie.
+
+---
+
+## De unde vine indexul contorului?
+
+Din istoricul de citiri pe care îl arată și aplicația Nova, la autocitiri. Senzorul arată indexul din cea mai recentă perioadă. Un contor fără nicio citire în istoric nu primește senzor până la prima citire.
 
 ---
 
@@ -94,19 +100,19 @@ Nu. Modificările făcute din **Configurare** (⚙️) reîncarcă integrarea au
 
 ## Trebuie să șterg și să readaug integrarea la actualizare?
 
-Nu. Actualizezi prin HACS, repornești Home Assistant, iar entitățile și istoricul rămân neatinse.
+Nu. Actualizezi prin HACS, repornești Home Assistant, iar entitățile și istoricul rămân neatinse. La trecerea la 1.1.0 există două excepții, pentru indexul contoarelor: un contor cu tarif dublu primește senzori noi pentru zi și noapte (`…_eaz`, `…_ean`), iar un contor fără serie primește alt identificator. Senzorul vechi rămâne atunci `unavailable` și îl poți șterge din interfață.
 
 ---
 
 ## Unde se păstrează parola mea?
 
-În stocarea internă Home Assistant, criptată, ca la orice altă integrare. Nu apare în loguri nici la nivel de debug, nu apare în raportul de diagnostic și nu pleacă nicăieri în afară de serverele Nova.
+În stocarea internă Home Assistant (`.storage`), ca la orice altă integrare. Nu e criptată acolo, dar nu iese din instanța ta: nu apare în loguri nici la nivel de debug, nu apare în raportul de diagnostic și nu pleacă nicăieri în afară de serverele Nova.
 
 ---
 
 ## Pot trimite raportul de diagnostic într-un issue public?
 
-Da. Raportul maschează adresa de email și nu conține parola, tokenul sau datele personale din răspunsurile API. Conține starea conturilor, câte facturi și contracte există și lista de senzori — exact ce trebuie pentru diagnosticare.
+Da, cu o mică pregătire. Raportul maschează adresa de email și nu conține parola, tokenul sau valorile din răspunsurile API: doar starea conturilor, câte facturi, plăți, contracte și citiri există și lista de senzori — exact ce trebuie pentru diagnosticare. Conține însă numărul contului (codul CRM), iar numele senzorilor de index conțin seria contorului; înlocuiește-le înainte de a-l publica, dacă nu vrei să fie vizibile.
 
 ---
 

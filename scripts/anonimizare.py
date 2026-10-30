@@ -1,14 +1,20 @@
-"""Anonimizarea răspunsurilor API înainte ca ele să devină fixturi de test.
+"""Anonimizarea răspunsurilor API din explorare (`scripts/explorare_api.py`).
 
 Politica este **permite doar ce e cunoscut ca sigur**, nu invers. Un câmp nou,
 apărut într-o versiune viitoare a API-ului, este ascuns automat — inversul ar
 însemna ca fiecare câmp personal nou să se scurgă până când cineva îl observă.
 
-Valorile numerice, booleene și nule trec întotdeauna: de ele depind testele, și
-nu identifică pe nimeni. Pentru șiruri de caractere, trec doar cheile din
-`CHEI_SIGURE`, iar restul primesc un surogat stabil **în cadrul unei rulări**
-(aceeași valoare dă același surogat, ca legăturile dintre fixturi să rămână
-valide), dar imposibil de inversat între rulări.
+Identificatorii dispar, dar sumele, indexurile și datele trec: rezultatul e bun
+pentru a confirma forma răspunsurilor, nu pentru a fi publicat. Fixturile din
+repo se scriu de mână, cu valori de exemplu.
+
+Valorile booleene și nule trec întotdeauna. Numerele trec dacă au o cheie
+cunoscută (`CHEI_NUMERICE`) sau sunt mici — un număr mare fără cheie cunoscută
+e mai probabil un identificator. Textele trec dacă au o cheie din `CHEI_SIGURE`,
+sau o cheie din `CHEI_NUMERICE` și arată ca un număr; textele goale trec și ele,
+iar orice text cu „@" devine o adresă de email surogat. Restul primesc un
+surogat stabil **în cadrul unei rulări** — aceeași valoare, sub aceeași cheie,
+dă același surogat —, dar imposibil de inversat între rulări.
 """
 
 from __future__ import annotations
@@ -42,6 +48,9 @@ CHEI_SIGURE: frozenset[str] = frozenset({
     "contractType", "invoiceDeliveryType", "crmAccountType", "legalEntityType",
     "tipAct", "isNGO", "option", "strategy", "_strategy", "collection",
     "selfReadingIntervalMessage", "selfReadingsEnabled",
+    # enumerări și date ale noului API (MyAccount)
+    "balanceType", "dialCode", "oldIndexReadingType", "newIndexReadingType",
+    "period", "language", "theme",
 })
 
 # Chei numerice care trebuie să treacă chiar dacă API-ul le trimite ca text.
@@ -50,6 +59,11 @@ CHEI_NUMERICE: frozenset[str] = frozenset({
     "totalBalance", "prosumerBalance", "balance", "lastIndex", "index",
     "consumption", "consum", "totalDocs", "totalPages", "page", "limit",
     "quantity", "price", "vat",
+    # sumele și indexurile noului API (MyAccount)
+    "amountTotal", "amountToPay", "amountRemaining", "total", "prosumer",
+    "prosumerDue", "processingPayments", "electricity", "gas",
+    "pendingInvoicesCount", "invoiceValue", "paidValue", "oldIndex", "newIndex",
+    "currentIndex", "consumptionOldIndex", "consumptionNewIndex", "constant",
 })
 
 # Chei al căror conținut e secret: nu primesc surogat, ci dispar.

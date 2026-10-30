@@ -99,7 +99,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: NovaConfigEntry) -> bool
             client = NovaApiClient(sesiune, email, parola)
 
         date_rulare.clients[crm] = client
-        date_rulare.coordinators[crm] = NovaCoordinator(hass, client, cont, interval)
+        date_rulare.coordinators[crm] = NovaCoordinator(
+            hass, client, cont, interval, config_entry=entry
+        )
 
     if not date_rulare.coordinators:
         raise ConfigEntryNotReady(

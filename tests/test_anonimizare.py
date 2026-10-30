@@ -31,14 +31,14 @@ def test_ascunde_si_campurile_pe_care_nu_le_cunoaste():
     """Regresie: `accountName` și `username` s-au scurs cândva în fixturi."""
     brut = {
         "accountName": "POPESCU ION-MARIN",
-        "accountId": "74f6c941-52a0-f111-b8db-7ced8d8ef5e4",
+        "accountId": "1a2b3c4d-0000-4000-8000-00000000abcd",
         "username": "ion@exemplu.ro",
         "camp_inventat_maine": "date personale viitoare",
     }
     curat = anonimizeaza(brut)
 
     assert "POPESCU" not in str(curat)
-    assert "74f6c941" not in str(curat)
+    assert "1a2b3c4d" not in str(curat)
     assert "ion@exemplu.ro" not in str(curat)
     assert "date personale viitoare" not in str(curat)
 

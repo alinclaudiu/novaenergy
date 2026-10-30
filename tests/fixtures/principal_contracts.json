@@ -2,12 +2,10 @@
   "docs": [
     {
       "contractId": "contract-0001",
-      "inForceAt": "01.09.2026",
+      "inForceAt": "01.07.2026",
       "invoiceDeliveryType": "Doar electronic",
       "number": "NV-100001",
-      "prosumerCertificate": "CERT-0001",
-      "prosumerContract": "PROS-0001",
-      "signedAt": "28.08.2026",
+      "signedAt": "12.06.2026",
       "status": "Activ",
       "tipAct": 1,
       "type": "Casnic",
@@ -16,7 +14,7 @@
   ],
   "hasNextPage": false,
   "hasPrevPage": false,
-  "limit": 10,
+  "limit": 100,
   "nextPage": null,
   "page": 1,
   "pagingCounter": 1,

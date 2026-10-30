@@ -7,7 +7,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/alinclaudiu/novaenergy?style=flat&logo=github)](https://github.com/alinclaudiu/novaenergy/stargazers)
 [![Instalări](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/alinclaudiu/novaenergy/main/statistici/shields/descarcari.json)](https://github.com/alinclaudiu/novaenergy)
 
-Integrare custom pentru [Home Assistant](https://www.home-assistant.io/) care aduce în casă datele contului tău de la **Nova Power & Gas** — sold, facturi, plăți, contracte și indexul contoarelor — prin API-ul platformei „Vreau la Nova".
+Integrare custom pentru [Home Assistant](https://www.home-assistant.io/) care aduce în casă datele contului tău de la **Nova Power & Gas** — sold, facturi, plăți, contracte și indexul contoarelor — prin contul tău de client Nova, „MyAccount" (cel din aplicația web și din cea mobilă).
 
 **Toate funcțiile sunt disponibile, pentru toată lumea.** Integrarea nu are chei, nu are activare și nu trimite nimic nicăieri în afară de serverele Nova.
 
@@ -22,30 +22,31 @@ Integrare custom pentru [Home Assistant](https://www.home-assistant.io/) care ad
 - **Facturi** — indicator de factură restantă, cu total restant și scadență, plus arhiva facturilor din anul curent
 - **Plăți** — arhiva plăților din anul curent, cu total
 - **Contract** — stare, număr, tip de client și datele de semnare
-- **Index contor** — câte un senzor pentru fiecare contor, identificat prin serie
+- **Index contor** — câte un senzor pentru fiecare contor, identificat prin serie, cu ultimul index din istoricul de citiri
 - **Formatare românească** — sume ca `1.234,56 lei`, date ca `15.04.2026`
 - **Reconfigurare fără reinstalare** — intervalul și conturile monitorizate se schimbă din interfață
-- **Diagnostic** — raport descărcabil pentru tichete de suport, cu datele personale mascate
+- **Diagnostic** — raport descărcabil pentru tichete de suport, fără parolă și token, cu emailul mascat
 
 ---
 
 ## Sursa datelor
 
-Datele vin de la backend-ul Nova Power & Gas (`backend.nova-energy.ro/api`), același folosit de aplicația web de client.
+Datele vin de la backend-ul aplicației de client Nova „MyAccount" (`myaccount-admin.nova-energy.ro/api/v1`), același folosit de aplicația web și de cea mobilă.
 
 | Endpoint | Ce aduce |
 |---|---|
-| `/accounts/login/client` | autentificare; întoarce contul curent și conturile asociate |
-| `/accounts/switch` | comută sesiunea pe un cont asociat |
-| `/accounts/me` | detaliile contului curent |
-| `/globals/app-info/general` | informații despre aplicație |
-| `/balances` | sold total și sold de prosumator |
-| `/invoices` | facturi |
-| `/payments` | plăți |
+| `/auth/login` | autentificare; întoarce contul curent și conturile asociate |
+| `/auth/switch-account` | comută sesiunea pe un cont asociat |
+| `/dashboard/balance` | sold total, sold de prosumator și dacă ești prosumator |
 | `/contracts` | contracte, per utilitate |
-| `/metering-points` | puncte de măsurare, contoare și serii |
+| `/metering-points` | puncte de consum |
+| `/invoices` | facturi, inclusiv cele de surplus de prosumator |
+| `/payments` | plăți |
+| `/self-readings` | istoricul citirilor de index, pe contor și cadran |
 
 Autentificarea se face cu email și parolă. Tokenul primit este reînnoit automat când expiră, fără să fie nevoie de vreo intervenție.
+
+> **Versiunea 1.1.0** trece integrarea pe acest backend. Cel vechi, `backend.nova-energy.ro/api`, răspunde `404` la toate rutele, deci versiunea 1.0.0 nu mai primește date. Entitățile rămân aceleași — sold, facturi, plăți, contract și indexul contoarelor cu un singur cadran, identificate prin serie (cazul obișnuit) — cu același `entity_id` și cu tot istoricul. Două excepții: un contor cu tarif dublu primește câte un senzor pentru zi și pentru noapte (`…_eaz`, `…_ean`), iar un contor fără serie primește alt identificator. Senzorul vechi rămâne atunci `unavailable` și poate fi șters din interfață.
 
 > Integrarea **nu trimite** nimic către contul tău: în versiunea 1.x citește doar. Trimiterea autocitirilor este planificată separat, pentru o versiune viitoare.
 
@@ -111,7 +112,7 @@ Nova Energy (3047398)                    ← soldul, care e pe cont
 └── Nova Energy (3047398) Energie Electrică
 ```
 
-Separarea urmează datele: API-ul întoarce un singur sold pentru tot contul, dar contracte, facturi și contoare separate pe utilitate. Dacă soldul ar sta pe fiecare utilitate, aceeași sumă ar apărea de două ori și ar părea de plată de două ori.
+Separarea urmează datele: soldul, facturile și plățile sunt ale contului, iar contractele și contoarele sunt ale fiecărei utilități. API-ul defalcă soldul și pe utilități, dar integrarea folosește totalul, pe dispozitivul contului — altfel aceeași sumă ar apărea de două ori și ar părea de plată de două ori.
 
 **Pe dispozitivul contului** — tiparul `sensor.novaenergy_{crm}_{sufix}`:
 
@@ -128,11 +129,15 @@ Separarea urmează datele: API-ul întoarce un singur sold pentru tot contul, da
 | Senzor | Sufix entitate | Stare | Icon |
 |---|---|---|---|
 | Date contract | `date_contract` | `Activ` / `Inactiv` | `mdi:file-sign` |
-| Index contor | `index_contor_{serie}` | valoarea indexului | `mdi:counter` |
+| Index contor | `index_contor_{serie}` | ultimul index citit | `mdi:counter` |
 
 Soldul, facturile și plățile stau pe cont pentru că API-ul le întoarce pe cont. Dacă ar fi filtrate pe utilitate și platforma nu marchează utilitatea pe fiecare factură, ele ar dispărea complet de pe un cont cu gaz și electricitate — iar „Factură restantă" ar spune liniștit „Nu" în timp ce ai de plată. Totalurile pe cont sunt corecte oricum; se pierde doar defalcarea.
 
-**Senzorul de sold prosumator apare doar pe conturile care au un contract de prosumator.** Soldul de prosumator vine ca `0` și pentru cine nu e prosumator, deci semnalul adevărat e contractul, nu suma. La fel, `index_contor` apare o dată pentru fiecare contor real. Când o valoare lipsește temporar, senzorul devine `unavailable` — niciodată `0`, ca să nu strice statisticile pe termen lung.
+**Senzorul de sold prosumator apare doar pe conturile de prosumator.** Soldul de prosumator vine ca `0` și pentru cine nu e prosumator, deci un `0` nu spune nimic: senzorul apare când platforma marchează contul ca prosumator, când soldul de prosumator e nenul sau când există un contract de prosumator. Valoarea lui e creditul din energia injectată.
+
+`index_contor` apare o dată pentru fiecare contor din istoricul de citiri și arată indexul din cea mai recentă perioadă. Un contor de energie cu tarif dublu are două indexuri, zi și noapte, cu cadranul la final: `index_contor_{serie}_eaz` și `index_contor_{serie}_ean`.
+
+Când o valoare lipsește temporar, senzorul devine `unavailable` — niciodată `0`, ca să nu strice statisticile pe termen lung.
 
 ### Atribute
 
@@ -141,8 +146,11 @@ Soldul, facturile și plățile stau pe cont pentru că API-ul le întoarce pe c
 ```yaml
 Total restant: "223,70 lei"
 Facturi neachitate: 2
+Cu scadența depășită: 1
 Scadența ultimei facturi: "15.04.2026"
 ```
+
+Starea e `Da` cât timp există o factură de plată, ca în fila „De plată" a aplicației Nova. „Cu scadența depășită" numără facturile pe care Nova le marchează drept restante. Facturile achitate, anulate sau cu plata în procesare nu se numără.
 
 **Arhivă facturi**
 
@@ -152,6 +160,18 @@ Emisă pe 15.02.2026: "98,20 lei"
 Total facturi: 2
 Total facturat: "223,70 lei"
 ```
+
+La prosumatori, compensarea energiei injectate vine ca factură separată, cu valoare negativă. Ea apare în listă, marcată, dar nu scade din „Total facturat" — e un credit, nu o sumă facturată:
+
+```yaml
+Emisă pe 15.09.2026: "-120,45 lei (surplus prosumator)"
+Emisă pe 15.09.2026 (NPE-000000002): "12,34 lei"
+Total facturi: 2
+Total facturat: "12,34 lei"
+Total surplus prosumator: "-120,45 lei"
+```
+
+Când două facturi au aceeași dată, a doua primește numărul ei în etichetă, ca să nu o ascundă pe prima. La plăți, eticheta primește numerele facturilor plătite.
 
 **Arhivă plăți**
 
@@ -176,8 +196,12 @@ Tip livrare: "Doar electronic"
 ```yaml
 Serie contor: "GS1234567"
 Ultima citire: "01.03.2026"
+Tip citire: "Citit"
+Index anterior: "5.885,00"
 Consum: "145,00"
 ```
+
+„Tip citire" folosește etichetele aplicației Nova — `Citit`, `Autocitit`, `Estimat`, `Facturat`, `Citire distribuitor`, `Convenție consum`, `Acord avansat`, iar `Autocitire` pentru o citire fără tip — ca un index estimat să se deosebească de unul citit efectiv. Un tip necunoscut apare așa cum îl trimite Nova.
 
 ---
 
@@ -234,7 +258,7 @@ custom_components/novaenergy/
 ├── config_flow.py     # configurare în doi pași + reconfigurare
 ├── const.py           # domeniu, adrese API, valori implicite
 ├── coordinator.py     # actualizare periodică per cont, cereri în paralel
-├── diagnostics.py     # raport de diagnostic, cu date personale mascate
+├── diagnostics.py     # raport de diagnostic: fără parolă și token, cu emailul mascat
 ├── helpers.py         # formatare românească, parsare, normalizarea conturilor
 ├── sensor.py          # entitățile
 ├── manifest.json
@@ -261,26 +285,25 @@ custom_components/novaenergy/
 2. **Doar citire în versiunea 1.x.** Trimiterea autocitirilor, convenția de consum și revizia tehnică la gaz urmează într-o versiune viitoare.
 3. **Datele apar atât cât le expune API-ul.** Dacă platforma nu întoarce un anumit câmp pentru contul tău, senzorul respectiv rămâne indisponibil în loc să afișeze o valoare inventată.
 4. **Contoarele sunt identificate prin serie.** Dacă furnizorul schimbă contorul, apare o entitate nouă — cea veche rămâne în istoric.
-5. **Contoarele apar doar când API-ul le raportează.** Pe unele conturi lista de contoare vine goală în afara perioadei de citire; atunci senzorii de index nu se creează.
+5. **Indexul vine din istoricul de citiri.** Un contor fără nicio citire în istoric nu primește senzor până la prima citire, iar indexul se actualizează odată cu istoricul, nu în timp real.
 
 ### Starea validărilor automate
 
-`hassfest` (validatorul oficial Home Assistant) și suita de teste trec verde.
-Validarea HACS trece 7 din 9 verificări: cele două rămase citesc conținutul
-fișierelor prin `raw.githubusercontent.com`, fără autentificare, iar un
-repository privat răspunde acolo `404`. Se rezolvă de la sine când repo-ul
-devine public.
+`hassfest` (validatorul oficial Home Assistant), validarea HACS și suita de
+teste rulează la fiecare push.
 
 ### Ce a fost verificat pe date reale
 
-Forma răspunsurilor API a fost confirmată pe un cont adevărat: autentificarea,
-contractele, soldul, punctele de măsurare și endpoint-urile fără date. Nu au putut
-fi verificate pe date reale, pentru că acel cont nu le are:
+Forma răspunsurilor noului API a fost confirmată pe un cont adevărat, de
+electricitate, prosumator: autentificarea, soldul, contractele, punctele de
+consum, facturile (de furnizare și de surplus), plățile și istoricul de citiri.
+Stările facturilor și codurile de cadran vin din aplicația oficială Nova. Nu au
+putut fi verificate pe date reale, pentru că acel cont nu le are:
 
-- **conturile asociate** (multi-cont) — codul le tratează, dar nu a întâlnit niciunul;
-- **facturile, plățile și contoarele** — numele exacte ale câmpurilor sunt o ipoteză
-  informată, iar codul acceptă mai multe denumiri pentru fiecare, ca o nepotrivire să
-  nu rupă senzorul.
+- **conturile asociate** (multi-cont) — codul le tratează ca aplicația oficială
+  (comutare plus antetul `X-Viewed-Account`), dar nu a întâlnit niciunul;
+- **gazul, facturile neachitate și contoarele cu tarif dublu** — sunt acoperite de
+  teste pe date construite în aceeași formă.
 
 Dacă întâlnești un senzor care rămâne gol deși platforma web arată date, un
 [issue](https://github.com/alinclaudiu/novaenergy/issues) cu raportul de diagnostic

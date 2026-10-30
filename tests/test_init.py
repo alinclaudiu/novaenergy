@@ -109,3 +109,25 @@ async def test_nu_se_autentifica_de_doua_ori_pentru_un_singur_cont(hass, fixtura
         await hass.async_block_till_done()
 
     assert len(creati) == 1, "s-a creat un client în plus față de conturile monitorizate"
+
+
+async def test_parola_schimbata_porneste_reautentificarea(hass, fixtura, date_intrare):
+    """Dacă Nova respinge parola în timpul funcționării, Home Assistant cere
+    parola nouă — nu doar la următoarea repornire."""
+    from custom_components.novaenergy.api import NovaCredentialeRespinse
+
+    intrare = await _configureaza(hass, fixtura, date_intrare)
+    coordinator = intrare.runtime_data.coordinators[CRM_A]
+    coordinator.client.async_get = AsyncMock(side_effect=NovaCredentialeRespinse("respinsă"))
+    coordinator.client.async_get_all = AsyncMock(side_effect=NovaCredentialeRespinse("respinsă"))
+
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    fluxuri = [
+        flux
+        for flux in hass.config_entries.flow.async_progress()
+        if flux["handler"] == DOMAIN and flux["context"].get("source") == "reauth"
+    ]
+    assert len(fluxuri) == 1
+    assert coordinator.last_update_success is False

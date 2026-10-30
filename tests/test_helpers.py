@@ -148,18 +148,36 @@ def test_desfa_invelisul_real(fixtura):
 def test_desfa_lasa_neatins_ce_nu_e_invelit():
     assert desfa_invelis({"docs": [1, 2]}) == {"docs": [1, 2]}
     assert desfa_invelis([1, 2]) == [1, 2]
+    # `data` alături de chei de business nu e un înveliș.
+    assert desfa_invelis({"data": 1, "total": 2}) == {"data": 1, "total": 2}
+
+
+def test_desfa_invelisul_cu_mesaj():
+    """Unele rute noi răspund `{message, data}`."""
+    raspuns = {"message": "Meters retrieved successfully", "data": {"meters": []}}
+    assert desfa_invelis(raspuns) == {"meters": []}
 
 
 def test_extrage_lista_din_raspuns_paginat(fixtura):
-    """Endpoint-urile de listă întorc {docs: [...]} cu paginare."""
-    assert extrage_lista(fixtura("principal_balances")) == [
-        {"balance": 0, "prosumerBalance": 0}
-    ]
+    """Contractele vin paginate: {docs: [...], hasNextPage, …}."""
+    contracte = extrage_lista(fixtura("principal_contracts"))
+    assert len(contracte) == 1
+    assert contracte[0]["utilityType"] == "electricity"
 
 
-def test_extrage_lista_din_raspuns_gol(fixtura):
-    """`/invoices` întoarce un obiect gol când nu există facturi."""
-    assert extrage_lista(fixtura("principal_invoices")) == []
+def test_extrage_lista_de_sub_cheia_proprie(fixtura):
+    """Celelalte liste vin sub o cheie proprie: {data: {invoices: [...]}}."""
+    facturi = extrage_lista(fixtura("principal_invoices"), "invoices")
+    assert [factura["balanceType"] for factura in facturi] == ["Prosumer Surplus", "Supply"]
+    assert len(extrage_lista(fixtura("principal_payments"), "payments")) == 1
+    assert len(extrage_lista(fixtura("principal_self_readings"), "selfReadings")) == 1
+    assert len(extrage_lista(fixtura("principal_metering_points"), "meteringPoints")) == 1
+
+
+@pytest.mark.parametrize("raspuns", [{}, {"data": {}}, {"data": []}, {"data": {"invoices": None}}])
+def test_extrage_lista_din_raspuns_gol(raspuns):
+    """Un cont fără facturi poate primi orice formă de „nimic"."""
+    assert extrage_lista(raspuns, "invoices") == []
 
 
 def test_adresa_vine_ca_sir_de_caractere():
@@ -209,8 +227,8 @@ def test_datele_sunt_intotdeauna_fara_fus_orar():
     """Amestecul de date cu și fără fus orar face max() să arunce TypeError."""
     from custom_components.novaenergy.helpers import parse_api_date
 
-    cu_fus = parse_api_date("2026-08-28T00:00:00.000Z")
-    fara_fus = parse_api_date("28.08.2026")
+    cu_fus = parse_api_date("2026-06-12T00:00:00.000Z")
+    fara_fus = parse_api_date("12.06.2026")
     assert cu_fus.tzinfo is None
     assert fara_fus.tzinfo is None
     # Trebuie să poată fi comparate între ele fără excepție.

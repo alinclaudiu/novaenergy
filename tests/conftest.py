@@ -2,12 +2,12 @@
 
 Fixturile vin din două surse:
 
-* `login.json` și `principal_*.json` — răspunsuri **reale**, anonimizate, de la
-  un cont care are un singur contract (electricitate), fără contoare, facturi
-  sau plăți. Ele fixează *forma* adevărată a API-ului.
+* `login.json` și `principal_*.json` — *forma* reală a răspunsurilor unui cont
+  adevărat (electricitate, prosumator, o factură de furnizare, una de surplus,
+  o plată, o citire de index), cu toate valorile înlocuite cu date de exemplu.
 * `login_multicont.json`, `contA_*.json`, `contB_*.json` — date **inventate**,
   construite în aceeași formă, pentru cazurile pe care contul real nu le
-  acoperă: mai multe conturi, gaz, contoare, facturi, plăți, prosumator.
+  acoperă: mai multe conturi, gaz, facturi neachitate, istoric de citiri.
 """
 
 import json
@@ -63,12 +63,11 @@ def date_intrare():
 
 # Fragmentul din URL → sufixul fixturii.
 BUCATI_URL = {
-    "balances": "balances",
+    "dashboard/balance": "balance",
     "contracts": "contracts",
     "metering-points": "metering_points",
     "invoices": "invoices",
     "payments": "payments",
-    "app-info": "app_info",
     "self-readings": "self_readings",
 }
 
